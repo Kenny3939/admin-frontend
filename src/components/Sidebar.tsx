@@ -146,37 +146,22 @@ export function Sidebar({
             width: bp === 'mobile' ? '224px' : sidebarW,
             backgroundColor: '#0C0C0C',
             borderRight: '1px solid #1F1F1F',
+            position: 'fixed',
           }}
         >
-          {/* Logo + colapsar */}
+          {/* Logo */}
           <div className="flex items-center px-3 py-4 shrink-0"
             style={{ borderBottom: '1px solid #1F1F1F', height: '64px', gap: '10px' }}>
-
-            {/* Ícono negocio — iniciales */}
             <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold"
               style={{ backgroundColor: '#2563EB', color: 'white', letterSpacing: '-0.5px' }}>
               {(nombreNegocio || 'PA').slice(0, 2).toUpperCase()}
             </div>
-
             {!isCollapsed && (
               <div className="flex-1 min-w-0">
                 <p className="text-white font-semibold text-sm truncate leading-none">{nombreNegocio || 'Panel Admin'}</p>
                 <p className="text-xs mt-0.5 truncate" style={{ color: '#555' }}>Secretaría Virtual</p>
               </div>
             )}
-
-            {/* Botón colapsar (solo desktop) */}
-            {bp === 'desktop' && (
-              <button onClick={toggleCollapse}
-                className="shrink-0 transition-colors p-1 rounded ml-auto"
-                style={{ color: '#444' }}
-                onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#777'}
-                onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#444'}>
-                {collapsed ? <PanelLeft size={15} /> : <PanelLeftClose size={15} />}
-              </button>
-            )}
-
-            {/* Botón cerrar (solo móvil) */}
             {bp === 'mobile' && (
               <button onClick={() => setMobileOpen(false)} style={{ color: '#555' }}
                 className="hover:text-white transition-colors p-1 ml-auto">
@@ -184,6 +169,20 @@ export function Sidebar({
               </button>
             )}
           </div>
+
+          {/* Botón colapsar flotante en el borde (solo desktop) */}
+          {bp === 'desktop' && (
+            <button
+              onClick={toggleCollapse}
+              className="absolute -right-3 top-5 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-150 shadow-md"
+              style={{ backgroundColor: '#1F1F1F', border: '1px solid #333', color: '#666', zIndex: 10 }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = '#2A2A2A'; (e.currentTarget as HTMLElement).style.color = '#CCC'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = '#1F1F1F'; (e.currentTarget as HTMLElement).style.color = '#666'; }}
+              title={collapsed ? 'Expandir sidebar' : 'Colapsar sidebar'}
+            >
+              {collapsed ? <PanelLeft size={12} /> : <PanelLeftClose size={12} />}
+            </button>
+          )}
 
           {/* Nav */}
           <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
