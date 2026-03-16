@@ -20,12 +20,33 @@ interface Perfil {
   email: string;
 }
 
+function useBreakpoint() {
+  const [bp, setBp] = useState<'mobile' | 'tablet' | 'desktop'>('desktop');
+  useEffect(() => {
+    function check() {
+      if (window.innerWidth < 768) setBp('mobile');
+      else if (window.innerWidth < 1024) setBp('tablet');
+      else setBp('desktop');
+    }
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+  return bp;
+}
+
 export default function App() {
-  const [perfil, setPerfil]             = useState<Perfil | null>(null);
-  const [cargando, setCargando]         = useState(true);
-  const [vistaActual, setVista]         = useState<Vista>('dashboard');
-  const [citas, setCitas]               = useState<any[]>([]);
+  const [perfil, setPerfil]               = useState<Perfil | null>(null);
+  const [cargando, setCargando]           = useState(true);
+  const [vistaActual, setVista]           = useState<Vista>('dashboard');
+  const [citas, setCitas]                 = useState<any[]>([]);
   const [nombreNegocio, setNombreNegocio] = useState<string>('');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const bp = useBreakpoint();
+
+  // Margen izquierdo dinámico según estado de sidebar
+  const marginLeft = bp === 'mobile' ? '0px' : (bp === 'tablet' || sidebarCollapsed) ? '64px' : '224px';
+  const paddingTop = bp === 'mobile' ? '56px' : '0px'; // espacio para topbar móvil
 
   useEffect(() => {
     async function inicializar() {
@@ -66,7 +87,6 @@ export default function App() {
         }
       }
     );
-
     return () => subscription.unsubscribe();
   }, []);
 
@@ -80,15 +100,10 @@ export default function App() {
   }
 
   async function cargarNombreNegocio(businessId: string) {
-    const { data } = await supabase
-      .from('businesses')
-      .select('name')
-      .eq('id', businessId)
-      .single();
+    const { data } = await supabase.from('businesses').select('name').eq('id', businessId).single();
     if (data) setNombreNegocio(data.name);
   }
 
-  // ─── Pantalla de carga ──────────────────────────────────────────────────────
   if (cargando) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#0C0C0C' }}>
@@ -100,31 +115,22 @@ export default function App() {
     );
   }
 
-  // ─── Sin sesión → Login ──────────────────────────────────────────────────────
-  if (!perfil) {
-    return <LoginPage onLogin={() => {}} />;
-  }
+  if (!perfil) return <LoginPage onLogin={() => {}} />;
+  if (perfil.role === 'superadmin') return <SuperadminPage onLogout={() => logout()} />;
 
-  // ─── Superadmin ──────────────────────────────────────────────────────────────
-  if (perfil.role === 'superadmin') {
-    return <SuperadminPage onLogout={() => logout()} />;
-  }
-
-  // ─── Admin / Assistant ───────────────────────────────────────────────────────
   function renderVista() {
     switch (vistaActual) {
-      case 'dashboard':    return <DashboardView negocio={perfil!.business_id} />;
-      case 'agenda':       return <AgendaView citas={citas} negocio={perfil!.business_id} />;
-      case 'clientes':     return <ClientsView negocio={perfil!.business_id} />;
-      case 'servicios':    return <ServicesView negocio={perfil!.business_id} />;
-      case 'configuracion':return <SettingsView negocio={perfil!.business_id} />;
-      default:             return <DashboardView negocio={perfil!.business_id} />;
+      case 'dashboard':     return <DashboardView negocio={perfil!.business_id} />;
+      case 'agenda':        return <AgendaView citas={citas} negocio={perfil!.business_id} />;
+      case 'clientes':      return <ClientsView negocio={perfil!.business_id} />;
+      case 'servicios':     return <ServicesView negocio={perfil!.business_id} />;
+      case 'configuracion': return <SettingsView negocio={perfil!.business_id} />;
+      default:              return <DashboardView negocio={perfil!.business_id} />;
     }
   }
 
   return (
-    <div className="min-h-screen flex" style={{ backgroundColor: '#F7F7F6', fontFamily: "'DM Sans', sans-serif" }}>
-      {/* Sidebar fija de 224px */}
+    <div className="min-h-screen" style={{ backgroundColor: '#F7F7F6', fontFamily: "'DM Sans', sans-serif" }}>
       <Sidebar
         vistaActual={vistaActual}
         onCambiarVista={(v) => setVista(v as Vista)}
@@ -133,11 +139,13 @@ export default function App() {
         role={perfil.role}
         negocio={perfil.business_id}
         nombreNegocio={nombreNegocio}
+        onCollapseChange={setSidebarCollapsed}
       />
-
-      {/* Contenido principal */}
-      <main className="flex-1 min-h-screen" style={{ marginLeft: '224px' }}>
-        <div className="max-w-5xl mx-auto px-8 py-8">
+      <main
+        className="min-h-screen transition-all duration-200"
+        style={{ marginLeft, paddingTop }}
+      >
+        <div className="max-w-5xl mx-auto px-6 py-8">
           {renderVista()}
         </div>
       </main>
