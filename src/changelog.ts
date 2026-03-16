@@ -12,6 +12,15 @@ export interface VersionEntry {
 }
 
 export const CHANGELOG: VersionEntry[] = [
+    {
+    version: '1.0.2',
+    fecha: '2026-03-16',
+    tipo: 'patch',
+    titulo: 'Correcciones de lógica',
+    cambios: [
+      { tipo: 'fix', descripcion: 'Corrección de respuestas del bot al momento de ingresar datos incorrectos' },
+    ],
+  },
   {
     version: '1.0.1',
     fecha: '2026-03-16',
