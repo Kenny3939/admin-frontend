@@ -4,7 +4,7 @@ import { supabase } from './supabase';
 import { getProfileByAuthId, logout } from './services/auth.service';
 import { LoginPage } from './components/LoginPage';
 import { SuperadminPage } from './components/SuperadminPage';
-import { Header } from './components/Header';
+import { Sidebar } from './components/Sidebar';
 import { AgendaView } from './components/AgendaView';
 import { DashboardView } from './components/DashboardView';
 import { ClientsView } from './components/ClientsView';
@@ -21,20 +21,23 @@ interface Perfil {
 }
 
 export default function App() {
-  const [perfil, setPerfil]     = useState<Perfil | null>(null);
-  const [cargando, setCargando] = useState(true);
-  const [vistaActual, setVista] = useState<Vista>('dashboard');
-  const [citas, setCitas]       = useState<any[]>([]);
+  const [perfil, setPerfil]             = useState<Perfil | null>(null);
+  const [cargando, setCargando]         = useState(true);
+  const [vistaActual, setVista]         = useState<Vista>('dashboard');
+  const [citas, setCitas]               = useState<any[]>([]);
+  const [nombreNegocio, setNombreNegocio] = useState<string>('');
 
   useEffect(() => {
-    // ─── Carga inicial desde caché local (sin red, instantáneo) ───────────────
     async function inicializar() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         try {
           const p = await getProfileByAuthId(session.user.id);
           setPerfil(p);
-          if (p && p.role !== 'superadmin') await cargarCitas(p.business_id);
+          if (p && p.role !== 'superadmin') {
+            await cargarCitas(p.business_id);
+            await cargarNombreNegocio(p.business_id);
+          }
         } catch {
           setPerfil(null);
         }
@@ -43,22 +46,23 @@ export default function App() {
     }
     inicializar();
 
-    // ─── Escuchar cambios futuros (login / logout) ────────────────────────────
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         if (session?.user) {
           try {
             const p = await getProfileByAuthId(session.user.id);
             setPerfil(p);
-            if (p && p.role !== 'superadmin') await cargarCitas(p.business_id);
+            if (p && p.role !== 'superadmin') {
+              await cargarCitas(p.business_id);
+              await cargarNombreNegocio(p.business_id);
+            }
           } catch {
-            // No hacer logout — puede ser error temporal de red o RLS
-            // La sesión sigue válida en localStorage
             setPerfil(null);
           }
         } else {
           setPerfil(null);
           setCitas([]);
+          setNombreNegocio('');
         }
       }
     );
@@ -75,13 +79,22 @@ export default function App() {
     setCitas(data || []);
   }
 
+  async function cargarNombreNegocio(businessId: string) {
+    const { data } = await supabase
+      .from('businesses')
+      .select('name')
+      .eq('id', businessId)
+      .single();
+    if (data) setNombreNegocio(data.name);
+  }
+
   // ─── Pantalla de carga ──────────────────────────────────────────────────────
   if (cargando) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center space-y-3">
-          <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-gray-500 text-sm">Cargando...</p>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#0C0C0C' }}>
+        <div className="text-center space-y-4">
+          <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm" style={{ color: '#555' }}>Cargando...</p>
         </div>
       </div>
     );
@@ -92,41 +105,41 @@ export default function App() {
     return <LoginPage onLogin={() => {}} />;
   }
 
-  // ─── Superadmin → centro de mando ────────────────────────────────────────────
+  // ─── Superadmin ──────────────────────────────────────────────────────────────
   if (perfil.role === 'superadmin') {
     return <SuperadminPage onLogout={() => logout()} />;
   }
 
-  // ─── Admin / Assistant → panel del negocio ───────────────────────────────────
+  // ─── Admin / Assistant ───────────────────────────────────────────────────────
   function renderVista() {
     switch (vistaActual) {
-      case 'dashboard':
-        return <DashboardView negocio={perfil!.business_id} />;
-      case 'agenda':
-        return <AgendaView citas={citas} negocio={perfil!.business_id} />;
-      case 'clientes':
-        return <ClientsView negocio={perfil!.business_id} />;
-      case 'servicios':
-        return <ServicesView negocio={perfil!.business_id} />;
-      case 'configuracion':
-        return <SettingsView negocio={perfil!.business_id} />;
-      default:
-        return <DashboardView negocio={perfil!.business_id} />;
+      case 'dashboard':    return <DashboardView negocio={perfil!.business_id} />;
+      case 'agenda':       return <AgendaView citas={citas} negocio={perfil!.business_id} />;
+      case 'clientes':     return <ClientsView negocio={perfil!.business_id} />;
+      case 'servicios':    return <ServicesView negocio={perfil!.business_id} />;
+      case 'configuracion':return <SettingsView negocio={perfil!.business_id} />;
+      default:             return <DashboardView negocio={perfil!.business_id} />;
     }
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header
+    <div className="min-h-screen flex" style={{ backgroundColor: '#F7F7F6', fontFamily: "'DM Sans', sans-serif" }}>
+      {/* Sidebar fija de 224px */}
+      <Sidebar
         vistaActual={vistaActual}
         onCambiarVista={(v) => setVista(v as Vista)}
         onLogout={() => logout()}
         email={perfil.email}
         role={perfil.role}
         negocio={perfil.business_id}
+        nombreNegocio={nombreNegocio}
       />
-      <main className="max-w-5xl mx-auto px-4 py-6">
-        {renderVista()}
+
+      {/* Contenido principal */}
+      <main className="flex-1 min-h-screen" style={{ marginLeft: '224px' }}>
+        <div className="max-w-5xl mx-auto px-8 py-8">
+          {renderVista()}
+        </div>
       </main>
     </div>
   );
