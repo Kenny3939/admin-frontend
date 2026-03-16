@@ -4,7 +4,7 @@ import { supabase } from '../supabase';
 import {
   LayoutDashboard, Calendar, Users, Scissors,
   Settings, LogOut, Bell, X, ChevronRight,
-  Building2, Menu, PanelLeftClose, PanelLeft
+  Menu, PanelLeftClose, PanelLeft
 } from 'lucide-react';
 
 type Vista = 'dashboard' | 'agenda' | 'clientes' | 'servicios' | 'configuracion';
@@ -149,34 +149,37 @@ export function Sidebar({
           }}
         >
           {/* Logo + colapsar */}
-          <div className="flex items-center px-4 py-5 shrink-0"
-            style={{ borderBottom: '1px solid #1F1F1F', height: '64px' }}>
-            <div className="flex items-center gap-2.5 flex-1 min-w-0">
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-                style={{ backgroundColor: '#2563EB' }}>
-                <Building2 size={13} className="text-white" />
-              </div>
-              {!isCollapsed && (
-                <div className="min-w-0">
-                  <p className="text-white font-semibold text-sm truncate leading-none">{nombreNegocio || 'Panel Admin'}</p>
-                  <p className="text-xs mt-0.5 truncate" style={{ color: '#555' }}>Secretaría Virtual</p>
-                </div>
-              )}
+          <div className="flex items-center px-3 py-4 shrink-0"
+            style={{ borderBottom: '1px solid #1F1F1F', height: '64px', gap: '10px' }}>
+
+            {/* Ícono negocio — iniciales */}
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold"
+              style={{ backgroundColor: '#2563EB', color: 'white', letterSpacing: '-0.5px' }}>
+              {(nombreNegocio || 'PA').slice(0, 2).toUpperCase()}
             </div>
+
+            {!isCollapsed && (
+              <div className="flex-1 min-w-0">
+                <p className="text-white font-semibold text-sm truncate leading-none">{nombreNegocio || 'Panel Admin'}</p>
+                <p className="text-xs mt-0.5 truncate" style={{ color: '#555' }}>Secretaría Virtual</p>
+              </div>
+            )}
+
             {/* Botón colapsar (solo desktop) */}
             {bp === 'desktop' && (
               <button onClick={toggleCollapse}
-                className="shrink-0 transition-colors p-1 rounded"
+                className="shrink-0 transition-colors p-1 rounded ml-auto"
                 style={{ color: '#444' }}
                 onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#777'}
                 onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#444'}>
                 {collapsed ? <PanelLeft size={15} /> : <PanelLeftClose size={15} />}
               </button>
             )}
+
             {/* Botón cerrar (solo móvil) */}
             {bp === 'mobile' && (
               <button onClick={() => setMobileOpen(false)} style={{ color: '#555' }}
-                className="hover:text-white transition-colors p-1">
+                className="hover:text-white transition-colors p-1 ml-auto">
                 <X size={16} />
               </button>
             )}
