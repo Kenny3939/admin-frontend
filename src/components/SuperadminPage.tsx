@@ -2,9 +2,10 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../supabase';
 import { logout } from '../services/auth.service';
+import { CHANGELOG, VERSION_ACTUAL } from '../changelog';
 import {
   Building2, Users, Wifi, WifiOff, Plus, X, Save,
-  LogOut, ShieldCheck, RefreshCw
+  LogOut, ShieldCheck, RefreshCw, GitBranch, Wrench, Sparkles, Bug
 } from 'lucide-react';
 
 interface Negocio {
@@ -23,7 +24,8 @@ interface SuperadminPageProps {
 }
 
 export function SuperadminPage({ onLogout }: SuperadminPageProps) {
-  const [negocios, setNegocios]         = useState<Negocio[]>([]);
+  const [tab, setTab]                       = useState<'negocios' | 'changelog'>('negocios');
+  const [negocios, setNegocios]             = useState<Negocio[]>([]);
   const [cargando, setCargando]         = useState(true);
   const [mostrarModal, setMostrarModal] = useState(false);
   const [guardando, setGuardando]       = useState(false);
@@ -127,10 +129,21 @@ export function SuperadminPage({ onLogout }: SuperadminPageProps) {
           </div>
           <div>
             <h1 className="font-bold text-gray-900">Centro de Mando</h1>
-            <p className="text-xs text-gray-500">Superadmin Panel</p>
+            <p className="text-xs text-gray-500">Superadmin Panel · <span className="text-indigo-500 font-semibold">v{VERSION_ACTUAL}</span></p>
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {/* Tabs */}
+          <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+            <button onClick={() => setTab('negocios')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${tab === 'negocios' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              Negocios
+            </button>
+            <button onClick={() => setTab('changelog')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 ${tab === 'changelog' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              <GitBranch size={12} /> Versiones
+            </button>
+          </div>
           <button
             onClick={cargarNegocios}
             className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
@@ -149,6 +162,7 @@ export function SuperadminPage({ onLogout }: SuperadminPageProps) {
 
       <main className="max-w-6xl mx-auto px-6 py-8 space-y-8">
 
+        {tab === 'negocios' && (<>
         {/* Stats rápidas */}
         <div className="grid grid-cols-3 gap-6">
           <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
@@ -247,6 +261,57 @@ export function SuperadminPage({ onLogout }: SuperadminPageProps) {
             </div>
           )}
         </div>
+        </>)}
+
+        {tab === 'changelog' && (
+          <div className="space-y-6">
+            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <GitBranch size={20} className="text-indigo-600" /> Historial de Versiones
+            </h2>
+            {CHANGELOG.map((entry, i) => (
+              <div key={entry.version} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+                {/* Header versión */}
+                <div className={`flex items-center justify-between px-6 py-4 ${i === 0 ? 'bg-indigo-50 border-b border-indigo-100' : 'bg-gray-50 border-b border-gray-100'}`}>
+                  <div className="flex items-center gap-3">
+                    <span className={`font-bold text-lg ${i === 0 ? 'text-indigo-700' : 'text-gray-700'}`}>
+                      v{entry.version}
+                    </span>
+                    {i === 0 && (
+                      <span className="bg-indigo-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                        Actual
+                      </span>
+                    )}
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                      entry.tipo === 'major' ? 'bg-purple-100 text-purple-700' :
+                      entry.tipo === 'minor' ? 'bg-emerald-100 text-emerald-700' :
+                      'bg-gray-100 text-gray-600'
+                    }`}>
+                      {entry.tipo === 'major' ? 'Mayor' : entry.tipo === 'minor' ? 'Feature' : 'Fix'}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold text-gray-800 text-sm">{entry.titulo}</p>
+                    <p className="text-xs text-gray-400">{new Date(entry.fecha).toLocaleDateString('es-GT', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                  </div>
+                </div>
+                {/* Lista de cambios */}
+                <div className="px-6 py-4 space-y-2">
+                  {entry.cambios.map((cambio, j) => (
+                    <div key={j} className="flex items-start gap-3 text-sm">
+                      <span className="mt-0.5 shrink-0">
+                        {cambio.tipo === 'feature' ? <Sparkles size={14} className="text-emerald-500" /> :
+                         cambio.tipo === 'fix'     ? <Bug size={14} className="text-orange-500" /> :
+                                                     <Wrench size={14} className="text-blue-500" />}
+                      </span>
+                      <span className="text-gray-600">{cambio.descripcion}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
       </main>
 
       {/* Modal nueva estética */}
