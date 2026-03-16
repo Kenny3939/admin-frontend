@@ -415,6 +415,7 @@ function ModalNuevaCita({ negocio, onClose, onGuardado }: {
   const [hora, setHora]             = useState('');
   const [notas, setNotas]           = useState('');
   const [guardando, setGuardando]   = useState(false);
+  const [advertencia, setAdvertencia] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -429,16 +430,47 @@ function ModalNuevaCita({ negocio, onClose, onGuardado }: {
   async function guardar() {
     if (!servicioId || !clienteId || !fecha || !hora) { alert('Completa todos los campos'); return; }
     setGuardando(true);
+    setAdvertencia(null);
     try {
       const srv      = servicios.find(s => s.id === servicioId);
       const duracion = srv?.duration_minutes || 30;
       const inicio   = new Date(`${fecha}T${hora}:00`);
       const fin      = new Date(inicio.getTime() + duracion * 60000);
 
+      // ✅ Verificar solapamiento antes de guardar
+      const { data: solapadas } = await supabase
+        .from('appointments')
+        .select('id, clients(name), services(name), start_datetime')
+        .eq('business_id', negocio)
+        .eq('status', 'scheduled')
+        .lt('start_datetime', fin.toISOString())
+        .gt('end_datetime', inicio.toISOString());
+
+      if (solapadas && solapadas.length > 0) {
+        const c = solapadas[0] as any;
+        const horaExistente = new Date(c.start_datetime).toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' });
+        setAdvertencia(`⚠️ Ya hay una cita de ${c.clients?.name || 'otro cliente'} (${c.services?.name}) a las ${horaExistente}. ¿Deseas agendar de todas formas?`);
+        setGuardando(false);
+        return;
+      }
+
+      await confirmarGuardar(inicio, fin, duracion);
+    } catch (e: any) { alert('Error: ' + e.message); setGuardando(false); }
+  }
+
+  async function confirmarGuardar(inicio?: Date, fin?: Date, duracion?: number) {
+    setGuardando(true);
+    setAdvertencia(null);
+    try {
+      const srv      = servicios.find(s => s.id === servicioId);
+      const dur      = duracion ?? srv?.duration_minutes ?? 30;
+      const ini      = inicio   ?? new Date(`${fecha}T${hora}:00`);
+      const fi       = fin      ?? new Date(ini.getTime() + dur * 60000);
+
       const { data, error } = await supabase.from('appointments')
         .insert([{
           business_id: negocio, client_id: clienteId, service_id: servicioId,
-          start_datetime: inicio.toISOString(), end_datetime: fin.toISOString(),
+          start_datetime: ini.toISOString(), end_datetime: fi.toISOString(),
           status: 'scheduled', notes: notas || null,
         }])
         .select('*, clients(name), services(name, price)').single();
@@ -515,6 +547,23 @@ function ModalNuevaCita({ negocio, onClose, onGuardado }: {
               onChange={e => setNotas(e.target.value)}
               className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none" />
           </div>
+
+          {/* Advertencia de solapamiento */}
+          {advertencia && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
+              <p className="mb-2">{advertencia}</p>
+              <div className="flex gap-2">
+                <button onClick={() => setAdvertencia(null)}
+                  className="flex-1 py-1.5 bg-gray-100 text-gray-700 font-semibold rounded-lg text-xs hover:bg-gray-200">
+                  Cancelar
+                </button>
+                <button onClick={() => confirmarGuardar()}
+                  className="flex-1 py-1.5 bg-amber-500 text-white font-semibold rounded-lg text-xs hover:bg-amber-600">
+                  Agendar de todas formas
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="flex gap-3 pt-1">
             <button onClick={onClose}
