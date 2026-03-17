@@ -1,7 +1,8 @@
 // src/components/ClientsView.tsx
 import { useEffect, useState } from 'react';
-import { User, Phone, Calendar, X, Clock, DollarSign, ChevronRight, Tag, FileText, Save } from 'lucide-react';
+import { User, Phone, Calendar, X, Clock, ChevronRight, Tag, FileText, Save, DollarSign } from 'lucide-react';
 import { supabase } from '../supabase';
+import { colors, typography, radius, shadow, spacing, clientLabel, appointmentBadge } from '../theme';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 interface Cliente {
@@ -21,369 +22,316 @@ interface Cita {
   services: { name: string; price: number };
 }
 
-// ─── Configuración de etiquetas ───────────────────────────────────────────────
-const ETIQUETAS: Record<string, { label: string; clase: string; dot: string }> = {
-  nuevo:     { label: 'Nuevo',     clase: 'bg-blue-100 text-blue-700',    dot: 'bg-blue-500' },
-  frecuente: { label: 'Frecuente', clase: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
-  vip:       { label: 'VIP',       clase: 'bg-amber-100 text-amber-700',  dot: 'bg-amber-500' },
-  pendiente: { label: 'Pendiente', clase: 'bg-red-100 text-red-600',      dot: 'bg-red-500' },
-};
+const LABELS = ['nuevo', 'frecuente', 'vip', 'pendiente'];
 
-const BADGE_CITA: Record<string, { label: string; clase: string }> = {
-  scheduled: { label: 'Programada',  clase: 'bg-indigo-100 text-indigo-700' },
-  completed: { label: 'Completada',  clase: 'bg-emerald-100 text-emerald-700' },
-  'no-show': { label: 'No asistió',  clase: 'bg-orange-100 text-orange-600' },
-  cancelled: { label: 'Cancelada',   clase: 'bg-red-100 text-red-600' },
-};
-
-// ─── Badge de etiqueta ────────────────────────────────────────────────────────
-function EtiquetaBadge({ label }: { label: string }) {
-  const cfg = ETIQUETAS[label] ?? ETIQUETAS['nuevo'];
+// ─── Badge etiqueta ───────────────────────────────────────────────────────────
+function LabelBadge({ label }: { label: string }) {
+  const cfg = clientLabel(label || 'nuevo');
   return (
-    <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold ${cfg.clase}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-      {cfg.label}
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: radius.full, fontSize: typography.xs, fontWeight: typography.semibold, backgroundColor: cfg.bg, color: cfg.text, whiteSpace: 'nowrap' }}>
+      <span style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: cfg.dot }} />
+      {cfg.text_label}
     </span>
   );
 }
 
-// ─── Componente principal ─────────────────────────────────────────────────────
-export function ClientsView({ negocio }: { negocio: string }) {
-  const [clientes, setClientes]           = useState<Cliente[]>([]);
-  const [cargando, setCargando]           = useState(true);
-  const [clienteSeleccionado, setCliente] = useState<Cliente | null>(null);
-  const [historial, setHistorial]         = useState<Cita[]>([]);
-  const [cargandoH, setCargandoH]         = useState(false);
+// ─── Badge estado cita ────────────────────────────────────────────────────────
+function StatusBadge({ status }: { status: string }) {
+  const cfg = appointmentBadge(status);
+  const labels: Record<string, string> = { scheduled: 'Programada', completed: 'Completada', 'no-show': 'No asistió', cancelled: 'Cancelada' };
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 7px', borderRadius: radius.full, fontSize: '11px', fontWeight: typography.semibold, backgroundColor: cfg.bg, color: cfg.text }}>
+      <span style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: cfg.dot }} />
+      {labels[status] || status}
+    </span>
+  );
+}
 
-  // Estado edición
-  const [editandoLabel, setEditandoLabel]   = useState(false);
-  const [editandoNotas, setEditandoNotas]   = useState(false);
+// ─── Input style ──────────────────────────────────────────────────────────────
+const inputStyle: React.CSSProperties = {
+  width: '100%', padding: '8px 11px', borderRadius: radius.lg,
+  border: `1px solid ${colors.border}`, backgroundColor: colors.bgSubtle,
+  color: colors.textPrimary, fontSize: typography.sm,
+  fontFamily: typography.fontFamily, outline: 'none', boxSizing: 'border-box',
+};
+
+// ─── Vista principal ──────────────────────────────────────────────────────────
+export function ClientsView({ negocio }: { negocio: string }) {
+  const [clientes, setClientes]             = useState<Cliente[]>([]);
+  const [cargando, setCargando]             = useState(true);
+  const [seleccionado, setSeleccionado]     = useState<Cliente | null>(null);
+  const [historial, setHistorial]           = useState<Cita[]>([]);
+  const [cargandoH, setCargandoH]           = useState(false);
+  const [editLabel, setEditLabel]           = useState(false);
+  const [editNotas, setEditNotas]           = useState(false);
   const [labelTemp, setLabelTemp]           = useState('');
   const [notasTemp, setNotasTemp]           = useState('');
-  const [guardandoPerfil, setGuardandoP]    = useState(false);
-
-  // Filtro por etiqueta
-  const [filtroLabel, setFiltroLabel] = useState<string>('todos');
+  const [guardando, setGuardando]           = useState(false);
+  const [filtro, setFiltro]                 = useState('todos');
+  const [busqueda, setBusqueda]             = useState('');
 
   useEffect(() => {
     if (!negocio) return;
-    supabase
-      .from('clients')
-      .select('*')
-      .eq('business_id', negocio)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        setClientes(data || []);
-        setCargando(false);
-      });
+    supabase.from('clients').select('*').eq('business_id', negocio).order('created_at', { ascending: false })
+      .then(({ data }) => { setClientes(data || []); setCargando(false); });
   }, [negocio]);
 
-  async function abrirHistorial(cliente: Cliente) {
-    setCliente(cliente);
-    setLabelTemp(cliente.label || 'nuevo');
-    setNotasTemp(cliente.internal_notes || '');
-    setEditandoLabel(false);
-    setEditandoNotas(false);
+  async function abrirCliente(c: Cliente) {
+    setSeleccionado(c);
+    setLabelTemp(c.label || 'nuevo');
+    setNotasTemp(c.internal_notes || '');
+    setEditLabel(false); setEditNotas(false);
     setCargandoH(true);
-    const { data } = await supabase
-      .from('appointments')
-      .select('id, start_datetime, status, notes, services(name, price)')
-      .eq('client_id', cliente.id)
-      .order('start_datetime', { ascending: false });
+    const { data } = await supabase.from('appointments').select('id, start_datetime, status, notes, services(name, price)').eq('client_id', c.id).order('start_datetime', { ascending: false });
     setHistorial((data as any[]) || []);
     setCargandoH(false);
   }
 
-  function cerrarPanel() {
-    setCliente(null);
-    setHistorial([]);
-    setEditandoLabel(false);
-    setEditandoNotas(false);
-  }
-
   async function guardarPerfil() {
-    if (!clienteSeleccionado) return;
-    setGuardandoP(true);
-    const { error } = await supabase
-      .from('clients')
-      .update({ label: labelTemp, internal_notes: notasTemp })
-      .eq('id', clienteSeleccionado.id);
-
-    if (error) {
-      alert('Error al guardar: ' + error.message);
-    } else {
-      const actualizado = { ...clienteSeleccionado, label: labelTemp, internal_notes: notasTemp };
-      setCliente(actualizado);
+    if (!seleccionado) return;
+    setGuardando(true);
+    const { error } = await supabase.from('clients').update({ label: labelTemp, internal_notes: notasTemp }).eq('id', seleccionado.id);
+    if (!error) {
+      const actualizado = { ...seleccionado, label: labelTemp, internal_notes: notasTemp };
+      setSeleccionado(actualizado);
       setClientes(prev => prev.map(c => c.id === actualizado.id ? actualizado : c));
-      setEditandoLabel(false);
-      setEditandoNotas(false);
+      setEditLabel(false); setEditNotas(false);
     }
-    setGuardandoP(false);
+    setGuardando(false);
   }
 
-  const clientesFiltrados = filtroLabel === 'todos'
-    ? clientes
-    : clientes.filter(c => (c.label || 'nuevo') === filtroLabel);
+  const clientesFiltrados = clientes
+    .filter(c => filtro === 'todos' || (c.label || 'nuevo') === filtro)
+    .filter(c => !busqueda || (c.name || '').toLowerCase().includes(busqueda.toLowerCase()) || c.phone_number.includes(busqueda));
 
-  if (cargando) {
-    return (
-      <div className="space-y-3">
-        {[...Array(4)].map((_, i) => <div key={i} className="animate-pulse h-14 bg-gray-100 rounded-xl" />)}
-      </div>
-    );
-  }
+  if (cargando) return (
+    <div>
+      <h1 style={{ margin: '0 0 24px', fontSize: typography.xxl, fontWeight: typography.bold, color: colors.textPrimary, letterSpacing: '-0.02em' }}>Clientes</h1>
+      {[...Array(5)].map((_, i) => (
+        <div key={i} style={{ height: 56, borderRadius: radius.lg, backgroundColor: colors.bgMuted, marginBottom: 4, animation: 'pulse 1.5s ease-in-out infinite' }} />
+      ))}
+    </div>
+  );
 
   return (
-    <div className="flex gap-5">
+    <div style={{ animation: 'fadeIn 0.2s ease' }}>
 
-      {/* ── Tabla de clientes ── */}
-      <div className={`transition-all duration-300 ${clienteSeleccionado ? 'w-1/2' : 'w-full'}`}>
-        <div className="flex justify-between items-center mb-5">
-          <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
-            <User size={22} className="text-indigo-600" /> Directorio de Clientes
-            <span className="text-sm font-normal text-gray-400">({clientesFiltrados.length})</span>
-          </h2>
-
-          {/* Filtro por etiqueta */}
-          <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
-            <button onClick={() => setFiltroLabel('todos')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${filtroLabel === 'todos' ? 'bg-white text-gray-700 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>
-              Todos
-            </button>
-            {Object.entries(ETIQUETAS).map(([key, cfg]) => (
-              <button key={key} onClick={() => setFiltroLabel(key)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${filtroLabel === key ? `bg-white shadow-sm ${cfg.clase}` : 'text-gray-400 hover:text-gray-600'}`}>
-                {cfg.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {clientesFiltrados.length === 0 ? (
-          <div className="text-center py-16 text-gray-500 border-2 border-dashed border-gray-200 rounded-lg">
-            {filtroLabel === 'todos' ? 'Aún no hay clientes registrados.' : `No hay clientes con etiqueta "${ETIQUETAS[filtroLabel]?.label}".`}
-          </div>
-        ) : (
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-gray-200 text-sm text-gray-500 bg-gray-50">
-                  <th className="px-5 py-3 font-semibold">Nombre</th>
-                  <th className="px-5 py-3 font-semibold hidden sm:table-cell">WhatsApp</th>
-                  <th className="px-5 py-3 font-semibold">Etiqueta</th>
-                  <th className="px-5 py-3"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {clientesFiltrados.map((cliente) => (
-                  <tr key={cliente.id} onClick={() => abrirHistorial(cliente)}
-                    className={`border-b border-gray-100 cursor-pointer transition-colors ${
-                      clienteSeleccionado?.id === cliente.id
-                        ? 'bg-indigo-50 border-l-4 border-l-indigo-500'
-                        : 'hover:bg-gray-50'
-                    }`}>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3 font-medium text-gray-900">
-                        <div className="bg-indigo-100 p-1.5 rounded-full text-indigo-600 shrink-0">
-                          <User size={14} />
-                        </div>
-                        {cliente.name || <span className="text-gray-400 italic text-sm">Sin nombre</span>}
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 text-gray-600 text-sm hidden sm:table-cell">
-                      <div className="flex items-center gap-2">
-                        <Phone size={13} className="text-gray-400" /> {cliente.phone_number}
-                      </div>
-                    </td>
-                    <td className="px-5 py-4">
-                      <EtiquetaBadge label={cliente.label || 'nuevo'} />
-                    </td>
-                    <td className="px-5 py-4">
-                      <ChevronRight size={16} className={clienteSeleccionado?.id === cliente.id ? 'text-indigo-500' : 'text-gray-300'} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+      {/* ── Header ── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.xl }}>
+        <h1 style={{ margin: 0, fontSize: typography.xxl, fontWeight: typography.bold, color: colors.textPrimary, letterSpacing: '-0.02em' }}>
+          Clientes
+          <span style={{ fontSize: typography.sm, fontWeight: typography.regular, color: colors.textMuted, marginLeft: 10 }}>
+            {clientesFiltrados.length}
+          </span>
+        </h1>
       </div>
 
-      {/* ── Panel lateral ── */}
-      {clienteSeleccionado && (
-        <div className="w-1/2 bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden flex flex-col max-h-[85vh]">
+      <div style={{ display: 'flex', gap: spacing.lg }}>
 
-          {/* Header */}
-          <div className="flex justify-between items-start p-5 border-b border-gray-100 bg-gray-50 shrink-0">
-            <div className="space-y-1">
-              <h3 className="font-bold text-gray-900 text-lg">
-                {clienteSeleccionado.name || 'Sin nombre'}
-              </h3>
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <Phone size={13} /> {clienteSeleccionado.phone_number}
-              </div>
-              <div className="flex items-center gap-2 mt-1">
-                <EtiquetaBadge label={clienteSeleccionado.label || 'nuevo'} />
-                <span className="text-xs text-gray-400">
-                  desde {new Date(clienteSeleccionado.created_at).toLocaleDateString('es-GT')}
-                </span>
-              </div>
+        {/* ── Lista ── */}
+        <div style={{ flex: seleccionado ? '0 0 50%' : '1', transition: 'flex 0.2s', minWidth: 0 }}>
+
+          {/* Búsqueda + filtros */}
+          <div style={{ marginBottom: spacing.lg, display: 'flex', gap: spacing.sm, flexWrap: 'wrap' }}>
+            <input
+              type="text" placeholder="Buscar por nombre o teléfono..."
+              value={busqueda} onChange={e => setBusqueda(e.target.value)}
+              style={{ ...inputStyle, flex: 1, minWidth: 180 }}
+            />
+            <div style={{ display: 'inline-flex', gap: 2, backgroundColor: colors.bgSubtle, padding: 3, borderRadius: radius.lg, border: `1px solid ${colors.border}` }}>
+              {['todos', ...LABELS].map(l => {
+                const active = filtro === l;
+                const cfg = l === 'todos' ? null : clientLabel(l);
+                return (
+                  <button key={l} onClick={() => setFiltro(l)}
+                    style={{ padding: '5px 10px', borderRadius: radius.sm, border: 'none', cursor: 'pointer', fontSize: typography.xs, fontWeight: typography.semibold, fontFamily: typography.fontFamily, backgroundColor: active ? colors.bgCard : 'transparent', color: active ? (cfg ? cfg.text : colors.textPrimary) : colors.textMuted, boxShadow: active ? shadow.sm : 'none', transition: 'all 0.15s' }}>
+                    {l === 'todos' ? 'Todos' : clientLabel(l).text_label}
+                  </button>
+                );
+              })}
             </div>
-            <button onClick={cerrarPanel} className="text-gray-400 hover:text-red-500 transition-colors p-1">
-              <X size={18} />
-            </button>
           </div>
 
-          {/* Edición de etiqueta y notas */}
-          <div className="p-4 border-b border-gray-100 shrink-0 space-y-3">
-
-            {/* Etiqueta */}
-            <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <label className="text-xs font-semibold text-gray-600 flex items-center gap-1">
-                  <Tag size={12} className="text-indigo-500" /> Etiqueta
-                </label>
-                {!editandoLabel && (
-                  <button onClick={() => setEditandoLabel(true)}
-                    className="text-xs text-indigo-500 hover:text-indigo-700 font-semibold">
-                    Cambiar
-                  </button>
-                )}
-              </div>
-              {editandoLabel ? (
-                <div className="flex gap-1 flex-wrap">
-                  {Object.entries(ETIQUETAS).map(([key, cfg]) => (
-                    <button key={key} onClick={() => setLabelTemp(key)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
-                        labelTemp === key ? `${cfg.clase} border-current` : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-300'
-                      }`}>
-                      {cfg.label}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <EtiquetaBadge label={labelTemp} />
-              )}
+          {/* Tabla */}
+          {clientesFiltrados.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '48px', border: `2px dashed ${colors.border}`, borderRadius: radius.xl, color: colors.textMuted, fontSize: typography.sm }}>
+              {filtro === 'todos' && !busqueda ? 'No hay clientes registrados.' : 'Sin resultados para esta búsqueda.'}
             </div>
+          ) : (
+            <div style={{ backgroundColor: colors.bgCard, border: `1px solid ${colors.border}`, borderRadius: radius.xl, boxShadow: shadow.sm, overflow: 'hidden' }}>
+              {clientesFiltrados.map((c, i) => {
+                const activo = seleccionado?.id === c.id;
+                return (
+                  <div key={c.id} onClick={() => abrirCliente(c)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', cursor: 'pointer', borderBottom: i < clientesFiltrados.length - 1 ? `1px solid ${colors.border}` : 'none', backgroundColor: activo ? colors.accentLight : 'transparent', borderLeft: activo ? `3px solid ${colors.accent}` : '3px solid transparent', transition: 'all 0.15s' }}
+                    onMouseEnter={e => { if (!activo) (e.currentTarget as HTMLElement).style.backgroundColor = colors.bgSubtle; }}
+                    onMouseLeave={e => { if (!activo) (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}>
 
-            {/* Notas internas */}
-            <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <label className="text-xs font-semibold text-gray-600 flex items-center gap-1">
-                  <FileText size={12} className="text-indigo-500" /> Notas internas
-                </label>
-                {!editandoNotas && (
-                  <button onClick={() => setEditandoNotas(true)}
-                    className="text-xs text-indigo-500 hover:text-indigo-700 font-semibold">
-                    {notasTemp ? 'Editar' : 'Agregar'}
-                  </button>
-                )}
-              </div>
-              {editandoNotas ? (
-                <textarea rows={2} value={notasTemp}
-                  onChange={e => setNotasTemp(e.target.value)}
-                  placeholder="Notas privadas sobre este cliente..."
-                  className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none" />
-              ) : notasTemp ? (
-                <p className="text-sm text-gray-600 bg-amber-50 border border-amber-100 rounded-lg p-2.5 whitespace-pre-line">
-                  {notasTemp}
-                </p>
-              ) : (
-                <p className="text-xs text-gray-400 italic">Sin notas.</p>
-              )}
-            </div>
+                    {/* Avatar */}
+                    <div style={{ width: 34, height: 34, borderRadius: '50%', backgroundColor: activo ? colors.accent : colors.bgSubtle, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: typography.xs, fontWeight: typography.bold, color: activo ? 'white' : colors.textMuted }}>
+                      {(c.name || '?').slice(0, 2).toUpperCase()}
+                    </div>
 
-            {/* Botón guardar (solo si hay cambios pendientes) */}
-            {(editandoLabel || editandoNotas) && (
-              <button onClick={guardarPerfil} disabled={guardandoPerfil}
-                className={`w-full flex items-center justify-center gap-2 py-2 text-sm font-semibold rounded-xl text-white transition-colors ${
-                  guardandoPerfil ? 'bg-indigo-300' : 'bg-indigo-600 hover:bg-indigo-700'
-                }`}>
-                <Save size={14} /> {guardandoPerfil ? 'Guardando...' : 'Guardar cambios'}
-              </button>
-            )}
-          </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: typography.sm, fontWeight: typography.semibold, color: colors.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {c.name || <span style={{ color: colors.textMuted, fontStyle: 'italic' }}>Sin nombre</span>}
+                      </p>
+                      <p style={{ margin: 0, fontSize: typography.xs, color: colors.textMuted, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Phone size={10} /> {c.phone_number}
+                      </p>
+                    </div>
 
-          {/* Stats */}
-          {!cargandoH && historial.length > 0 && (
-            <div className="grid grid-cols-3 gap-3 p-4 border-b border-gray-100 shrink-0">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-gray-900">
-                  {historial.filter(c => c.status === 'completed').length}
-                </p>
-                <p className="text-xs text-gray-500">Completadas</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-orange-500">
-                  {historial.filter(c => c.status === 'no-show').length}
-                </p>
-                <p className="text-xs text-gray-500">No asistió</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-emerald-600">
-                  Q{historial
-                    .filter(c => c.status === 'completed')
-                    .reduce((t, c) => {
-                      const srv = Array.isArray(c.services) ? c.services[0] : c.services;
-                      return t + (Number(srv?.price) || 0);
-                    }, 0).toFixed(0)}
-                </p>
-                <p className="text-xs text-gray-500">Total cobrado</p>
-              </div>
+                    <LabelBadge label={c.label || 'nuevo'} />
+                    <ChevronRight size={14} style={{ color: activo ? colors.accent : colors.textDisabled, flexShrink: 0 }} />
+                  </div>
+                );
+              })}
             </div>
           )}
+        </div>
 
-          {/* Historial de citas */}
-          <div className="overflow-y-auto flex-1 p-4 space-y-3">
-            {cargandoH ? (
-              <div className="space-y-2">
-                {[...Array(3)].map((_, i) => <div key={i} className="animate-pulse h-20 bg-gray-100 rounded-lg" />)}
+        {/* ── Panel lateral ── */}
+        {seleccionado && (
+          <div style={{ flex: '0 0 calc(50% - 16px)', backgroundColor: colors.bgCard, border: `1px solid ${colors.border}`, borderRadius: radius.xl, boxShadow: shadow.md, overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '85vh', animation: 'fadeIn 0.15s ease' }}>
+
+            {/* Header del panel */}
+            <div style={{ padding: '18px 20px', borderBottom: `1px solid ${colors.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: colors.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: typography.sm, fontWeight: typography.bold, color: 'white', flexShrink: 0 }}>
+                  {(seleccionado.name || '?').slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <p style={{ margin: '0 0 2px', fontSize: typography.md, fontWeight: typography.bold, color: colors.textPrimary }}>
+                    {seleccionado.name || 'Sin nombre'}
+                  </p>
+                  <p style={{ margin: 0, fontSize: typography.xs, color: colors.textMuted, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Phone size={10} /> {seleccionado.phone_number}
+                  </p>
+                </div>
               </div>
-            ) : historial.length === 0 ? (
-              <div className="text-center py-10 text-gray-400 text-sm">
-                Este cliente no tiene citas registradas.
+              <button onClick={() => setSeleccionado(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.textMuted, padding: 4, borderRadius: radius.md, display: 'flex' }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.danger}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.textMuted}>
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Etiqueta + notas */}
+            <div style={{ padding: '16px 20px', borderBottom: `1px solid ${colors.border}`, flexShrink: 0 }}>
+
+              {/* Etiqueta */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <p style={{ margin: 0, fontSize: typography.xs, fontWeight: typography.semibold, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Tag size={11} /> Etiqueta
+                  </p>
+                  {!editLabel && (
+                    <button onClick={() => setEditLabel(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: typography.xs, color: colors.accentText, fontWeight: typography.semibold, fontFamily: typography.fontFamily, padding: 0 }}>
+                      Cambiar
+                    </button>
+                  )}
+                </div>
+                {editLabel ? (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {LABELS.map(l => {
+                      const cfg = clientLabel(l);
+                      const sel = labelTemp === l;
+                      return (
+                        <button key={l} onClick={() => setLabelTemp(l)}
+                          style={{ padding: '4px 10px', borderRadius: radius.full, border: `1px solid ${sel ? cfg.dot : colors.border}`, cursor: 'pointer', fontSize: typography.xs, fontWeight: typography.semibold, fontFamily: typography.fontFamily, backgroundColor: sel ? cfg.bg : 'transparent', color: sel ? cfg.text : colors.textMuted, transition: 'all 0.15s' }}>
+                          {cfg.text_label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <LabelBadge label={labelTemp} />
+                )}
               </div>
-            ) : (
-              historial.map((cita) => {
-                const srv   = Array.isArray(cita.services) ? cita.services[0] : cita.services;
-                const badge = BADGE_CITA[cita.status] ?? BADGE_CITA['scheduled'];
+
+              {/* Notas internas */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <p style={{ margin: 0, fontSize: typography.xs, fontWeight: typography.semibold, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <FileText size={11} /> Notas internas
+                  </p>
+                  {!editNotas && (
+                    <button onClick={() => setEditNotas(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: typography.xs, color: colors.accentText, fontWeight: typography.semibold, fontFamily: typography.fontFamily, padding: 0 }}>
+                      {notasTemp ? 'Editar' : 'Agregar'}
+                    </button>
+                  )}
+                </div>
+                {editNotas ? (
+                  <textarea rows={2} value={notasTemp} onChange={e => setNotasTemp(e.target.value)} placeholder="Notas privadas sobre este cliente..." style={{ ...inputStyle, resize: 'none' }} />
+                ) : notasTemp ? (
+                  <p style={{ margin: 0, fontSize: typography.sm, color: colors.textSecondary, backgroundColor: colors.warningLight, border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: '8px 10px', whiteSpace: 'pre-line' }}>
+                    {notasTemp}
+                  </p>
+                ) : (
+                  <p style={{ margin: 0, fontSize: typography.xs, color: colors.textDisabled, fontStyle: 'italic' }}>Sin notas.</p>
+                )}
+              </div>
+
+              {(editLabel || editNotas) && (
+                <button onClick={guardarPerfil} disabled={guardando}
+                  style={{ marginTop: 12, width: '100%', padding: '8px', borderRadius: radius.lg, border: 'none', backgroundColor: colors.accent, color: 'white', cursor: 'pointer', fontSize: typography.sm, fontWeight: typography.semibold, fontFamily: typography.fontFamily, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <Save size={13} /> {guardando ? 'Guardando...' : 'Guardar cambios'}
+                </button>
+              )}
+            </div>
+
+            {/* Stats */}
+            {!cargandoH && historial.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, borderBottom: `1px solid ${colors.border}`, flexShrink: 0 }}>
+                {[
+                  { label: 'Completadas', val: historial.filter(c => c.status === 'completed').length, color: colors.success },
+                  { label: 'No asistió',  val: historial.filter(c => c.status === 'no-show').length,  color: colors.warning },
+                  { label: 'Total cobrado', val: `Q${historial.filter(c => c.status === 'completed').reduce((t, c) => { const s = Array.isArray(c.services) ? c.services[0] : c.services; return t + (Number(s?.price) || 0); }, 0).toFixed(0)}`, color: colors.success },
+                ].map((s, i) => (
+                  <div key={i} style={{ padding: '12px 16px', textAlign: 'center' }}>
+                    <p style={{ margin: '0 0 2px', fontSize: typography.lg, fontWeight: typography.bold, color: s.color }}>{s.val}</p>
+                    <p style={{ margin: 0, fontSize: typography.xs, color: colors.textMuted }}>{s.label}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Historial */}
+            <div style={{ overflowY: 'auto', flex: 1, padding: '12px 16px' }}>
+              {cargandoH ? (
+                [...Array(3)].map((_, i) => <div key={i} style={{ height: 72, borderRadius: radius.lg, backgroundColor: colors.bgMuted, marginBottom: 6, animation: 'pulse 1.5s ease-in-out infinite' }} />)
+              ) : historial.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '32px', color: colors.textMuted, fontSize: typography.sm }}>Sin citas registradas.</div>
+              ) : historial.map(cita => {
+                const srv = Array.isArray(cita.services) ? cita.services[0] : cita.services;
                 const fecha = new Date(cita.start_datetime).toLocaleDateString('es-GT', { day: '2-digit', month: 'short', year: 'numeric' });
                 const hora  = new Date(cita.start_datetime).toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' });
-
                 return (
-                  <div key={cita.id} className="border border-gray-100 rounded-xl p-4 space-y-2">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Calendar size={13} className="text-indigo-400" /> {fecha}
-                          <span className="text-gray-300">·</span>
-                          <Clock size={13} className="text-indigo-400" /> {hora}
-                        </div>
-                        <p className="text-sm font-semibold text-gray-800">{srv?.name}</p>
-                        <div className="flex items-center gap-3">
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${badge.clase}`}>
-                            {badge.label}
-                          </span>
-                          {srv?.price && (
-                            <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
-                              <DollarSign size={11} /> Q{srv.price}
-                            </span>
-                          )}
-                        </div>
+                  <div key={cita.id} style={{ backgroundColor: colors.bgSubtle, border: `1px solid ${colors.border}`, borderRadius: radius.lg, padding: '12px 14px', marginBottom: 6 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <p style={{ margin: '0 0 3px', fontSize: typography.sm, fontWeight: typography.semibold, color: colors.textPrimary }}>{srv?.name}</p>
+                        <p style={{ margin: 0, fontSize: typography.xs, color: colors.textMuted, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Calendar size={10} /> {fecha}
+                          <Clock size={10} /> {hora}
+                          {srv?.price > 0 && <><DollarSign size={10} /> Q{srv.price}</>}
+                        </p>
                       </div>
+                      <StatusBadge status={cita.status} />
                     </div>
                     {cita.notes && (
-                      <div className="bg-amber-50 border border-amber-100 rounded-lg p-2.5 text-xs text-amber-800 whitespace-pre-line">
+                      <p style={{ margin: '8px 0 0', fontSize: typography.xs, color: colors.textSecondary, backgroundColor: colors.warningLight, borderRadius: radius.sm, padding: '6px 8px', whiteSpace: 'pre-line' }}>
                         {cita.notes}
-                      </div>
+                      </p>
                     )}
                   </div>
                 );
-              })
-            )}
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
