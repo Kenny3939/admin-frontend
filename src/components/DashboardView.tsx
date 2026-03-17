@@ -15,6 +15,13 @@ interface Stats {
   totalClientes:     number;
 }
 
+interface NotificationLite {
+  id: string;
+  message: string;
+  seen: boolean;
+  created_at: string;
+}
+
 // ─── Stat Card estilo Mercury ─────────────────────────────────────────────────
 function StatCard({ titulo, valor, sub, icono, highlight = false }: {
   titulo: string;
@@ -83,7 +90,7 @@ function Skel({ h = '96px' }: { h?: string }) {
 // ─── Vista principal ──────────────────────────────────────────────────────────
 export function DashboardView({ negocio }: { negocio: string }) {
   const [stats, setCancelaciones]         = useState<Stats | null>(null);
-  const [cancelaciones, setCancel]        = useState<any[]>([]);
+  const [cancelaciones, setCancel]        = useState<NotificationLite[]>([]);
   const [cargando, setCargando]           = useState(true);
 
   useEffect(() => {
@@ -98,7 +105,7 @@ export function DashboardView({ negocio }: { negocio: string }) {
             .order('created_at', { ascending: false }).limit(5),
         ]);
         setCancelaciones({ ...dia, totalClientes });
-        setCancel(nots || []);
+        setCancel((nots || []) as NotificationLite[]);
       } finally {
         setCargando(false);
       }

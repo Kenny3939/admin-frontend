@@ -15,6 +15,12 @@ export default defineConfig([
       reactHooks.configs.flat.recommended,
       reactRefresh.configs.vite,
     ],
+    rules: {
+      // Demasiado agresiva para efectos de carga async (fetch + setState).
+      'react-hooks/set-state-in-effect': 'off',
+      // En módulos "providers"/hooks es normal exportar hooks/tipos además de componentes.
+      'react-refresh/only-export-components': 'off',
+    },
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,

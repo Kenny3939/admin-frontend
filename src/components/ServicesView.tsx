@@ -1,8 +1,9 @@
 // src/components/ServicesView.tsx
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Scissors, Clock, Plus, X, Save, Power } from 'lucide-react';
 import { supabase } from '../supabase';
 import { colors, typography, radius, shadow, spacing } from '../theme';
+import { useToast } from '../providers/toast';
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '9px 12px', borderRadius: radius.lg,
@@ -11,8 +12,18 @@ const inputStyle: React.CSSProperties = {
   fontFamily: typography.fontFamily, outline: 'none', boxSizing: 'border-box',
 };
 
+interface Servicio {
+  id: string;
+  business_id: string;
+  name: string;
+  duration_minutes: number;
+  price: number;
+  is_active: boolean;
+}
+
 export function ServicesView({ negocio }: { negocio: string }) {
-  const [servicios, setServicios]       = useState<any[]>([]);
+  const { toast } = useToast();
+  const [servicios, setServicios]       = useState<Servicio[]>([]);
   const [cargando, setCargando]         = useState(true);
   const [modalOpen, setModalOpen]       = useState(false);
   const [nombre, setNombre]             = useState('');
@@ -20,19 +31,22 @@ export function ServicesView({ negocio }: { negocio: string }) {
   const [precio, setPrecio]             = useState(0);
   const [guardando, setGuardando]       = useState(false);
 
-  useEffect(() => { cargar(); }, [negocio]);
-
-  async function cargar() {
+  const cargar = useCallback(async () => {
     if (!negocio) return;
     const { data } = await supabase.from('services').select('*').eq('business_id', negocio).order('name');
-    setServicios(data || []);
+    setServicios((data || []) as Servicio[]);
     setCargando(false);
-  }
+  }, [negocio]);
+
+  useEffect(() => { cargar(); }, [cargar]);
 
   async function toggleActivo(id: string, actual: boolean) {
     setServicios(prev => prev.map(s => s.id === id ? { ...s, is_active: !actual } : s));
     const { error } = await supabase.from('services').update({ is_active: !actual }).eq('id', id);
-    if (error) { alert('Error: ' + error.message); cargar(); }
+    if (error) {
+      toast(error.message, { type: 'error', title: 'No se pudo actualizar' });
+      cargar();
+    }
   }
 
   async function agregar(e: React.FormEvent) {
@@ -42,11 +56,13 @@ export function ServicesView({ negocio }: { negocio: string }) {
       .insert([{ business_id: negocio, name: nombre, duration_minutes: duracion, price: precio, is_active: true }])
       .select();
     if (error) {
-      alert('Error: ' + error.message);
+      toast(error.message, { type: 'error', title: 'No se pudo crear' });
     } else {
-      setServicios(prev => [...prev, data[0]].sort((a, b) => a.name.localeCompare(b.name)));
+      const created = (data?.[0] as Servicio | undefined);
+      if (created) setServicios(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
       setNombre(''); setDuracion(30); setPrecio(0);
       setModalOpen(false);
+      toast('Servicio creado correctamente.', { type: 'success' });
     }
     setGuardando(false);
   }
@@ -172,7 +188,7 @@ export function ServicesView({ negocio }: { negocio: string }) {
 }
 
 // ─── Fila de servicio ─────────────────────────────────────────────────────────
-function ServiceRow({ servicio, onToggle, last }: { servicio: any; onToggle: (id: string, actual: boolean) => void; last: boolean }) {
+function ServiceRow({ servicio, onToggle, last }: { servicio: Servicio; onToggle: (id: string, actual: boolean) => void; last: boolean }) {
   const [hov, setHov] = useState(false);
 
   return (

@@ -19,7 +19,7 @@ interface Cita {
   start_datetime: string;
   status: string;
   notes: string | null;
-  services: { name: string; price: number };
+  services: { name: string; price: number } | { name: string; price: number }[];
 }
 
 const LABELS = ['nuevo', 'frecuente', 'vip', 'pendiente'];
@@ -83,7 +83,7 @@ export function ClientsView({ negocio }: { negocio: string }) {
     setEditLabel(false); setEditNotas(false);
     setCargandoH(true);
     const { data } = await supabase.from('appointments').select('id, start_datetime, status, notes, services(name, price)').eq('client_id', c.id).order('start_datetime', { ascending: false });
-    setHistorial((data as any[]) || []);
+    setHistorial((data || []) as Cita[]);
     setCargandoH(false);
   }
 

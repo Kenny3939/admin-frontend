@@ -1,62 +1,8 @@
 // src/components/Topbar.tsx
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState } from 'react';
 import { Sun, Moon } from 'lucide-react';
 import { colors, typography, shadow } from '../theme';
-
-// ─── Theme Context ─────────────────────────────────────────────────────────────
-type Theme = 'light' | 'dark';
-
-interface ThemeContextType {
-  theme: Theme;
-  toggleTheme: () => void;
-}
-
-const ThemeContext = createContext<ThemeContextType>({
-  theme: 'light',
-  toggleTheme: () => {},
-});
-
-export function useTheme() {
-  return useContext(ThemeContext);
-}
-
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    // 1. Revisar preferencia guardada
-    const saved = localStorage.getItem('sv-theme') as Theme | null;
-    if (saved) return saved;
-    // 2. Respetar preferencia del SO
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  });
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('sv-theme', theme);
-  }, [theme]);
-
-  // Escuchar cambios del SO
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    function handleChange(e: MediaQueryListEvent) {
-      // Solo cambiar si el usuario no tiene preferencia guardada
-      if (!localStorage.getItem('sv-theme')) {
-        setTheme(e.matches ? 'dark' : 'light');
-      }
-    }
-    mq.addEventListener('change', handleChange);
-    return () => mq.removeEventListener('change', handleChange);
-  }, []);
-
-  function toggleTheme() {
-    setTheme(prev => prev === 'light' ? 'dark' : 'light');
-  }
-
-  return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
-      {children}
-    </ThemeContext.Provider>
-  );
-}
+import { useTheme } from '../providers/theme';
 
 // ─── Vista label por ruta ─────────────────────────────────────────────────────
 const VISTA_LABELS: Record<string, string> = {

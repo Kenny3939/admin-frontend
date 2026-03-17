@@ -1,11 +1,13 @@
 // src/components/Sidebar.tsx
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../supabase';
 import {
   LayoutDashboard, Calendar, Users, Scissors,
   Settings, LogOut, Bell, X, ChevronRight,
   Menu, PanelLeftClose, PanelLeft
 } from 'lucide-react';
+import { useBreakpoint } from '../hooks/useBreakpoint';
+import { colors } from '../theme';
 
 type Vista = 'dashboard' | 'agenda' | 'clientes' | 'servicios' | 'configuracion';
 
@@ -41,22 +43,6 @@ const ROLE_LABEL: Record<string, string> = {
   superadmin: 'Superadmin',
 };
 
-// ─── Hook para detectar breakpoint ───────────────────────────────────────────
-function useBreakpoint() {
-  const [bp, setBp] = useState<'mobile' | 'tablet' | 'desktop'>('desktop');
-  useEffect(() => {
-    function check() {
-      if (window.innerWidth < 768) setBp('mobile');
-      else if (window.innerWidth < 1024) setBp('tablet');
-      else setBp('desktop');
-    }
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, []);
-  return bp;
-}
-
 export function Sidebar({
   vistaActual, onCambiarVista, onLogout, email, role, negocio, nombreNegocio, onCollapseChange
 }: SidebarProps) {
@@ -70,6 +56,13 @@ export function Sidebar({
   const isCollapsed = bp === 'tablet' || (bp === 'desktop' && collapsed);
   const sidebarW   = isCollapsed ? '72px' : '240px'; // Ligeramente más ancho para respirar mejor
   const showSidebar = bp !== 'mobile' || mobileOpen;
+
+  const cargarNotifs = useCallback(async () => {
+    const { data } = await supabase
+      .from('notifications').select('*').eq('business_id', negocio)
+      .order('created_at', { ascending: false }).limit(20);
+    setNotifs((data || []) as Notificacion[]);
+  }, [negocio]);
 
   function toggleCollapse() {
     const next = !collapsed;
@@ -86,14 +79,7 @@ export function Sidebar({
         payload => setNotifs(prev => [payload.new as Notificacion, ...prev]))
       .subscribe();
     return () => { supabase.removeChannel(canal); };
-  }, [negocio]);
-
-  async function cargarNotifs() {
-    const { data } = await supabase
-      .from('notifications').select('*').eq('business_id', negocio)
-      .order('created_at', { ascending: false }).limit(20);
-    setNotifs(data || []);
-  }
+  }, [cargarNotifs, negocio]);
 
   async function abrirNotifs() {
     setNotifOpen(true);
@@ -114,7 +100,10 @@ export function Sidebar({
     <>
       {/* ── Botón hamburguesa (solo móvil) ── */}
       {bp === 'mobile' && (
-        <div className="fixed top-0 left-0 right-0 z-40 flex items-center px-4 h-14 bg-[#0A0A0A]/80 backdrop-blur-md border-b border-white/10">
+        <div
+          className="fixed top-0 left-0 right-0 z-40 flex items-center px-4 h-14 backdrop-blur-md"
+          style={{ backgroundColor: `${colors.sidebar}CC`, borderBottom: `1px solid ${colors.sidebarBorder}` }}
+        >
           <button onClick={() => setMobileOpen(true)} className="text-zinc-400 hover:text-white transition-colors p-1 rounded-md">
             <Menu size={20} />
           </button>
@@ -122,7 +111,7 @@ export function Sidebar({
           {noVistas > 0 && (
             <button onClick={abrirNotifs} className="ml-auto relative p-1 text-zinc-400 hover:text-white transition-colors">
               <Bell size={18} />
-              <span className="absolute 0 right-0 w-2 h-2 rounded-full bg-blue-500 ring-2 ring-[#0A0A0A]" />
+              <span className="absolute 0 right-0 w-2 h-2 rounded-full bg-blue-500" style={{ boxShadow: `0 0 0 2px ${colors.sidebar}` }} />
             </button>
           )}
         </div>
@@ -136,9 +125,11 @@ export function Sidebar({
       {/* ── Sidebar ── */}
       {showSidebar && (
         <aside
-          className={`fixed left-0 top-0 h-screen flex flex-col z-50 transition-all duration-300 ease-in-out bg-[#0A0A0A] border-r border-white/5`}
+          className={`fixed left-0 top-0 h-screen flex flex-col z-50 transition-all duration-300 ease-in-out`}
           style={{ width: bp === 'mobile' ? '240px' : sidebarW }}
         >
+          <div style={{ position: 'absolute', inset: 0, backgroundColor: colors.sidebar, borderRight: `1px solid ${colors.sidebarBorder}` }} />
+          <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%' }}>
           {/* Logo */}
           <div className="flex items-center px-4 py-5 shrink-0 h-[72px] gap-3">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/20">
@@ -247,6 +238,7 @@ export function Sidebar({
                 <LogOut size={18} />
               </button>
             )}
+          </div>
           </div>
         </aside>
       )}

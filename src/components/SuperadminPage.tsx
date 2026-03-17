@@ -3,9 +3,10 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../supabase';
 import { logout } from '../services/auth.service';
 import { CHANGELOG, VERSION_ACTUAL } from '../changelog';
-import { Building2, Users, Wifi, WifiOff, Plus, X, Save, LogOut, ShieldCheck, RefreshCw, GitBranch, Wrench, Sparkles, Bug, Sun, Moon } from 'lucide-react';
+import { Building2, Users, Wifi, WifiOff, Plus, X, Save, LogOut, ShieldCheck, RefreshCw, GitBranch, Wrench, Sparkles, Bug } from 'lucide-react';
 import { colors, typography, radius, shadow, spacing } from '../theme';
-import { useTheme } from './Topbar';
+import { useTheme } from '../providers/theme';
+import { useToast } from '../providers/toast';
 
 interface Negocio {
   id: string;
@@ -25,12 +26,13 @@ const inputStyle: React.CSSProperties = {
 };
 
 export function SuperadminPage({ onLogout }: { onLogout: () => void }) {
+  const { toast } = useToast();
   const [negocios, setNegocios]         = useState<Negocio[]>([]);
   const [cargando, setCargando]         = useState(true);
   const [tab, setTab]                   = useState<'negocios' | 'changelog'>('negocios');
   const [modalOpen, setModalOpen]       = useState(false);
   const [guardando, setGuardando]       = useState(false);
-  const { theme, toggleTheme }          = useTheme();
+  const { theme, toggleTheme, isSystem, setSystem } = useTheme();
 
   const [nombre, setNombre]       = useState('');
   const [whatsapp, setWhatsapp]   = useState('');
@@ -68,8 +70,9 @@ export function SuperadminPage({ onLogout }: { onLogout: () => void }) {
       setModalOpen(false);
       setNombre(''); setWhatsapp(''); setEmailAdmin(''); setPassAdmin('');
       cargar();
-    } catch (err: any) {
-      alert('Error: ' + err.message);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast(msg, { type: 'error', title: 'No se pudo crear el negocio' });
     } finally {
       setGuardando(false);
     }
@@ -77,8 +80,13 @@ export function SuperadminPage({ onLogout }: { onLogout: () => void }) {
 
   async function toggleEstado(id: string, actual: string) {
     const nuevo = actual === 'active' ? 'inactive' : 'active';
-    await supabase.from('businesses').update({ status: nuevo }).eq('id', id);
+    const { error } = await supabase.from('businesses').update({ status: nuevo }).eq('id', id);
+    if (error) {
+      toast(error.message, { type: 'error', title: 'No se pudo actualizar' });
+      return;
+    }
     cargar();
+    toast(`Negocio ${nuevo === 'active' ? 'activado' : 'desactivado'}.`, { type: 'success' });
   }
 
   async function handleLogout() { await logout(); onLogout(); }
@@ -103,10 +111,13 @@ export function SuperadminPage({ onLogout }: { onLogout: () => void }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {/* Toggle tema */}
           <button onClick={toggleTheme}
-            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: radius.md, border: `1px solid #2A2A2A`, backgroundColor: '#1A1A1A', color: '#777', cursor: 'pointer', fontSize: typography.xs, fontWeight: typography.medium, fontFamily: typography.fontFamily }}>
-            {theme === 'light' ? <><Moon size={12} /> Oscuro</> : <><Sun size={12} /> Claro</>}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: radius.md, border: `1px solid ${colors.border}`, backgroundColor: colors.bgSubtle, color: colors.textSecondary, cursor: 'pointer', fontSize: typography.xs, fontWeight: typography.medium, fontFamily: typography.fontFamily }}>
+            {theme === 'light' ? '☾ Oscuro' : '☀︎ Claro'}
           </button>
-
+          <button onClick={setSystem} title="Usar tema del sistema"
+            style={{ display: 'flex', alignItems: 'center', padding: '5px 10px', borderRadius: radius.md, border: `1px solid ${colors.border}`, backgroundColor: isSystem ? colors.accentLight : colors.bgSubtle, color: isSystem ? colors.accentText : colors.textSecondary, cursor: 'pointer', fontSize: typography.xs, fontWeight: typography.medium, fontFamily: typography.fontFamily }}>
+            Sistema
+          </button>
           <button onClick={cargar}
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#555', padding: 6, borderRadius: radius.md, display: 'flex' }}
             onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#999'}
@@ -143,12 +154,15 @@ export function SuperadminPage({ onLogout }: { onLogout: () => void }) {
         {/* Tabs */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.lg }}>
           <div style={{ display: 'inline-flex', gap: 2, backgroundColor: colors.bgSubtle, padding: 3, borderRadius: radius.lg, border: `1px solid ${colors.border}` }}>
-            {[{ id: 'negocios', label: 'Negocios' }, { id: 'changelog', label: 'Versiones', icon: <GitBranch size={12} /> }].map(t => {
+            {([
+              { id: 'negocios', label: 'Negocios' },
+              { id: 'changelog', label: 'Versiones', icon: <GitBranch size={12} /> },
+            ] as const).map(t => {
               const active = tab === t.id;
               return (
-                <button key={t.id} onClick={() => setTab(t.id as any)}
+                <button key={t.id} onClick={() => setTab(t.id)}
                   style={{ padding: '6px 14px', borderRadius: radius.md, border: 'none', cursor: 'pointer', fontSize: typography.sm, fontWeight: typography.semibold, fontFamily: typography.fontFamily, display: 'inline-flex', alignItems: 'center', gap: 5, backgroundColor: active ? colors.bgCard : 'transparent', color: active ? colors.textPrimary : colors.textMuted, boxShadow: active ? shadow.sm : 'none', transition: 'all 0.15s' }}>
-                  {t.icon}{t.label}
+                  {'icon' in t ? t.icon : null}{t.label}
                 </button>
               );
             })}

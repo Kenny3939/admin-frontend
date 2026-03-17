@@ -4,9 +4,10 @@ import { Calendar, Clock, User, Plus, CheckCircle, UserX, RefreshCw, X, Save, Sc
 import { supabase } from '../supabase';
 import { actualizarEstadoCita } from '../services/appointments.service';
 import { colors, typography, radius, shadow, spacing, appointmentBadge } from '../theme';
+import { useToast } from '../providers/toast';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
-interface Cita {
+export interface Cita {
   id: string;
   start_datetime: string;
   end_datetime: string;
@@ -19,6 +20,12 @@ interface Servicio {
   id: string;
   name: string;
   duration_minutes: number;
+}
+
+interface ClienteLite {
+  id: string;
+  name: string;
+  phone_number: string;
 }
 
 interface SeguimientoForm {
@@ -95,7 +102,7 @@ function TarjetaMini({ cita, onFinalizar, onNoShow, onSeguimiento }: { cita: Cit
         <div style={{ marginTop: 6, display: 'flex', gap: 4, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
           <ActionBtn icon={<CheckCircle size={10} />} label="Listo" onClick={e => { e.stopPropagation(); onFinalizar(cita.id); }} variant="success" />
           <ActionBtn icon={<UserX size={10} />} label="N/A" onClick={e => { e.stopPropagation(); onNoShow(cita.id); }} variant="danger" />
-          <ActionBtn icon={<RefreshCw size={10} />} label="Seguim." onClick={e => { e.stopPropagation(); onSeguimiento({ citaId: cita.id, clienteNombre: cita.clients?.name || '', servicioActualId: (cita.services as any)?.id || '', servicioActualNombre: cita.services?.name || '' }); }} variant="accent" />
+          <ActionBtn icon={<RefreshCw size={10} />} label="Seguim." onClick={e => { e.stopPropagation(); onSeguimiento({ citaId: cita.id, clienteNombre: cita.clients?.name || '', servicioActualId: cita.services?.id || '', servicioActualNombre: cita.services?.name || '' }); }} variant="accent" />
         </div>
       )}
     </div>
@@ -138,7 +145,7 @@ function TarjetaCita({ cita, onFinalizar, onNoShow, onSeguimiento }: { cita: Cit
         <div style={{ display: 'flex', gap: 6, paddingTop: 12, borderTop: `1px solid ${colors.border}` }}>
           <ActionBtn icon={<CheckCircle size={12} />} label="Finalizar" onClick={() => onFinalizar(cita.id)} variant="success" />
           <ActionBtn icon={<UserX size={12} />} label="No asistió" onClick={() => onNoShow(cita.id)} variant="danger" />
-          <ActionBtn icon={<RefreshCw size={12} />} label="Seguimiento" onClick={() => onSeguimiento({ citaId: cita.id, clienteNombre: cita.clients?.name || '', servicioActualId: (cita.services as any)?.id || '', servicioActualNombre: cita.services?.name || '' })} variant="accent" />
+          <ActionBtn icon={<RefreshCw size={12} />} label="Seguimiento" onClick={() => onSeguimiento({ citaId: cita.id, clienteNombre: cita.clients?.name || '', servicioActualId: cita.services?.id || '', servicioActualNombre: cita.services?.name || '' })} variant="accent" />
         </div>
       )}
     </div>
@@ -189,6 +196,7 @@ const selectStyle: React.CSSProperties = { ...inputStyle, cursor: 'pointer' };
 
 // ─── Modal Seguimiento ────────────────────────────────────────────────────────
 function ModalSeguimiento({ datos, negocio, onClose, onGuardado }: { datos: SeguimientoForm; negocio: string; onClose: () => void; onGuardado: (c: Cita) => void }) {
+  const { toast } = useToast();
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [servicioId, setServicioId] = useState(datos.servicioActualId);
   const [fecha, setFecha] = useState('');
@@ -217,7 +225,10 @@ function ModalSeguimiento({ datos, negocio, onClose, onGuardado }: { datos: Segu
       if (error) throw error;
       onGuardado(data as Cita);
       onClose();
-    } catch (e: any) { alert('Error: ' + e.message); }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast(msg, { type: 'error', title: 'No se pudo agendar' });
+    }
     finally { setGuardando(false); }
   }
 
@@ -252,8 +263,9 @@ function ModalSeguimiento({ datos, negocio, onClose, onGuardado }: { datos: Segu
 
 // ─── Modal Nueva Cita ─────────────────────────────────────────────────────────
 function ModalNuevaCita({ negocio, onClose, onGuardado }: { negocio: string; onClose: () => void; onGuardado: (c: Cita) => void }) {
+  const { toast } = useToast();
   const [servicios, setServicios] = useState<Servicio[]>([]);
-  const [clientes, setClientes]   = useState<any[]>([]);
+  const [clientes, setClientes]   = useState<ClienteLite[]>([]);
   const [servicioId, setServicioId] = useState('');
   const [clienteId, setClienteId]   = useState('');
   const [fecha, setFecha]           = useState('');
@@ -278,13 +290,17 @@ function ModalNuevaCita({ negocio, onClose, onGuardado }: { negocio: string; onC
       const fin = new Date(ini.getTime() + (srv?.duration_minutes || 30) * 60000);
       const { data: solapadas } = await supabase.from('appointments').select('id, clients(name), services(name), start_datetime').eq('business_id', negocio).eq('status', 'scheduled').lt('start_datetime', fin.toISOString()).gt('end_datetime', ini.toISOString());
       if (solapadas && solapadas.length > 0) {
-        const c = solapadas[0] as any;
+        const c = solapadas[0] as { start_datetime: string; clients?: { name?: string | null } | null; services?: { name?: string | null } | null };
         const h = new Date(c.start_datetime).toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' });
-        setAdvertencia(`Ya hay una cita de ${c.clients?.name || 'otro cliente'} (${c.services?.name}) a las ${h}. ¿Agendar de todas formas?`);
+        setAdvertencia(`Ya hay una cita de ${c.clients?.name || 'otro cliente'} (${c.services?.name || 'servicio'}) a las ${h}. ¿Agendar de todas formas?`);
         setGuardando(false); return;
       }
       await confirmar(ini, fin);
-    } catch (e: any) { alert('Error: ' + e.message); setGuardando(false); }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast(msg, { type: 'error', title: 'No se pudo agendar' });
+      setGuardando(false);
+    }
   }
 
   async function confirmar(ini?: Date, fin?: Date) {
@@ -298,7 +314,10 @@ function ModalNuevaCita({ negocio, onClose, onGuardado }: { negocio: string; onC
         .select('*, clients(name), services(name, price)').single();
       if (error) throw error;
       onGuardado(data as Cita);
-    } catch (e: any) { alert('Error: ' + e.message); }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast(msg, { type: 'error', title: 'No se pudo agendar' });
+    }
     finally { setGuardando(false); }
   }
 
@@ -411,7 +430,8 @@ function VistaMensual({ citas, mesBase, onFinalizar, onNoShow, onSeguimiento }: 
 }
 
 // ─── Vista principal ──────────────────────────────────────────────────────────
-export function AgendaView({ citas: citasIniciales, negocio }: { citas: any[]; negocio: string }) {
+export function AgendaView({ citas: citasIniciales, negocio }: { citas: Cita[]; negocio: string }) {
+  const { toast } = useToast();
   const [citas, setCitas]           = useState<Cita[]>(citasIniciales);
   const [tabP, setTabP]             = useState<TabPrincipal>('programadas');
   const [tabV, setTabV]             = useState<TabVista>('diaria');
@@ -425,12 +445,24 @@ export function AgendaView({ citas: citasIniciales, negocio }: { citas: any[]; n
   const historial   = citas.filter(c => ['completed', 'no-show', 'cancelled'].includes(c.status));
 
   async function handleFinalizar(id: string) {
-    await actualizarEstadoCita(id, 'completed');
-    setCitas(prev => prev.map(c => c.id === id ? { ...c, status: 'completed' } : c));
+    try {
+      await actualizarEstadoCita(id, 'completed');
+      setCitas(prev => prev.map(c => c.id === id ? { ...c, status: 'completed' } : c));
+      toast('Cita marcada como completada.', { type: 'success' });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast(msg, { type: 'error', title: 'No se pudo actualizar' });
+    }
   }
   async function handleNoShow(id: string) {
-    await actualizarEstadoCita(id, 'no-show');
-    setCitas(prev => prev.map(c => c.id === id ? { ...c, status: 'no-show' } : c));
+    try {
+      await actualizarEstadoCita(id, 'no-show');
+      setCitas(prev => prev.map(c => c.id === id ? { ...c, status: 'no-show' } : c));
+      toast('Cita marcada como “no asistió”.', { type: 'info' });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast(msg, { type: 'error', title: 'No se pudo actualizar' });
+    }
   }
 
   function navegar(dir: -1 | 1) {

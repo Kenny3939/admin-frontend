@@ -6,6 +6,11 @@ import { supabase } from '../supabase';
 
 export type AppointmentStatus = 'scheduled' | 'completed' | 'no-show' | 'cancelled';
 
+type AppointmentWithServicePrice = {
+  status: AppointmentStatus;
+  services: { price: number | string | null } | { price: number | string | null }[] | null;
+};
+
 // ─── Actualizar estado de una cita ───────────────────────────────────────────
 export async function actualizarEstadoCita(citaId: string, status: AppointmentStatus) {
   const { error } = await supabase
@@ -33,9 +38,9 @@ export async function obtenerStatsDia(negocioId: string) {
 
   if (error) throw error;
 
-  const citas = data || [];
+  const citas = (data || []) as AppointmentWithServicePrice[];
 
-  const sumarPrecio = (lista: any[]) =>
+  const sumarPrecio = (lista: AppointmentWithServicePrice[]) =>
     lista.reduce((total, cita) => {
       const srv = Array.isArray(cita.services) ? cita.services[0] : cita.services;
       return total + (Number(srv?.price) || 0);

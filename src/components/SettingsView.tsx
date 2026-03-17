@@ -1,8 +1,9 @@
 // src/components/SettingsView.tsx
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Clock, Calendar, Trash2, Plus, Save, Bell, X, MessageSquare } from 'lucide-react';
 import { supabase } from '../supabase';
 import { colors, typography, radius, shadow, spacing } from '../theme';
+import { useToast } from '../providers/toast';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 interface BusinessSettings {
@@ -91,10 +92,13 @@ export function SettingsView({ negocio }: { negocio: string }) {
 
       {/* Tabs */}
       <div style={{ display: 'inline-flex', gap: 2, backgroundColor: colors.bgSubtle, padding: 3, borderRadius: radius.lg, border: `1px solid ${colors.border}`, marginBottom: spacing.xl }}>
-        {[{ id: 'general', label: 'General' }, { id: 'dias_libres', label: 'Días libres' }].map(t => {
+        {([
+          { id: 'general', label: 'General' },
+          { id: 'dias_libres', label: 'Días libres' },
+        ] as const).map(t => {
           const active = tab === t.id;
           return (
-            <button key={t.id} onClick={() => setTab(t.id as any)}
+            <button key={t.id} onClick={() => setTab(t.id)}
               style={{ padding: '6px 16px', borderRadius: radius.md, border: 'none', cursor: 'pointer', fontSize: typography.sm, fontWeight: typography.semibold, fontFamily: typography.fontFamily, backgroundColor: active ? colors.bgCard : 'transparent', color: active ? colors.textPrimary : colors.textMuted, boxShadow: active ? shadow.sm : 'none', transition: 'all 0.15s' }}>
               {t.label}
             </button>
@@ -110,6 +114,7 @@ export function SettingsView({ negocio }: { negocio: string }) {
 
 // ─── Tab General ──────────────────────────────────────────────────────────────
 function TabGeneral({ negocio }: { negocio: string }) {
+  const { toast } = useToast();
   const [business, setBusiness]   = useState<Business | null>(null);
   const [settings, setSettings]   = useState<BusinessSettings | null>(null);
   const [guardando, setGuardando] = useState(false);
@@ -136,10 +141,11 @@ function TabGeneral({ negocio }: { negocio: string }) {
     ]);
     setGuardando(false);
     if (r1.error || r2.error) {
-      alert('Error: ' + (r1.error?.message || r2.error?.message));
+      toast(r1.error?.message || r2.error?.message || 'Error desconocido', { type: 'error', title: 'No se pudo guardar' });
     } else {
       setGuardado(true);
       setTimeout(() => setGuardado(false), 3000);
+      toast('Cambios guardados.', { type: 'success' });
     }
   }
 
@@ -214,6 +220,7 @@ function TabGeneral({ negocio }: { negocio: string }) {
 
 // ─── Tab Días Libres ──────────────────────────────────────────────────────────
 function TabDiasLibres({ negocio }: { negocio: string }) {
+  const { toast } = useToast();
   const [bloqueados, setBloqueados]   = useState<BlockedDate[]>([]);
   const [cargando, setCargando]       = useState(true);
   const [modalOpen, setModalOpen]     = useState(false);
@@ -225,18 +232,18 @@ function TabDiasLibres({ negocio }: { negocio: string }) {
   const [reason, setReason]           = useState('');
   const [guardando, setGuardando]     = useState(false);
 
-  useEffect(() => { cargar(); }, [negocio]);
-
-  async function cargar() {
+  const cargar = useCallback(async () => {
     const { data } = await supabase.from('blocked_dates').select('*').eq('business_id', negocio).order('start_date');
     setBloqueados(data || []);
     setCargando(false);
-  }
+  }, [negocio]);
+
+  useEffect(() => { cargar(); }, [cargar]);
 
   async function guardar() {
     if (!startDate) return;
     setGuardando(true);
-    const payload: any = {
+    const payload: Omit<BlockedDate, 'id'> & { business_id: string } = {
       business_id: negocio,
       start_date: startDate,
       end_date: tipo === 'range' ? endDate : startDate,
@@ -246,14 +253,22 @@ function TabDiasLibres({ negocio }: { negocio: string }) {
       end_time: tipo === 'hours' ? endTime : null,
     };
     const { error } = await supabase.from('blocked_dates').insert([payload]);
-    if (error) alert('Error: ' + error.message);
-    else { setModalOpen(false); setStartDate(''); setEndDate(''); setStartTime(''); setEndTime(''); setReason(''); setTipo('full'); cargar(); }
+    if (error) toast(error.message, { type: 'error', title: 'No se pudo guardar' });
+    else {
+      setModalOpen(false); setStartDate(''); setEndDate(''); setStartTime(''); setEndTime(''); setReason(''); setTipo('full'); cargar();
+      toast('Bloqueo guardado.', { type: 'success' });
+    }
     setGuardando(false);
   }
 
   async function eliminar(id: string) {
-    await supabase.from('blocked_dates').delete().eq('id', id);
+    const { error } = await supabase.from('blocked_dates').delete().eq('id', id);
+    if (error) {
+      toast(error.message, { type: 'error', title: 'No se pudo eliminar' });
+      return;
+    }
     setBloqueados(prev => prev.filter(b => b.id !== id));
+    toast('Bloqueo eliminado.', { type: 'success' });
   }
 
   const hoy     = new Date().toISOString().split('T')[0];
@@ -352,8 +367,12 @@ function TabDiasLibres({ negocio }: { negocio: string }) {
             <div style={{ padding: '20px' }}>
               {/* Tipo */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, marginBottom: spacing.lg }}>
-                {[{ id: 'full', label: 'Día completo' }, { id: 'hours', label: 'Rango horas' }, { id: 'range', label: 'Varios días' }].map(t => (
-                  <button key={t.id} onClick={() => setTipo(t.id as any)}
+                {([
+                  { id: 'full', label: 'Día completo' },
+                  { id: 'hours', label: 'Rango horas' },
+                  { id: 'range', label: 'Varios días' },
+                ] as const).map(t => (
+                  <button key={t.id} onClick={() => setTipo(t.id)}
                     style={{ padding: '7px', borderRadius: radius.md, border: `1px solid ${tipo === t.id ? colors.accent : colors.border}`, cursor: 'pointer', fontSize: typography.xs, fontWeight: typography.semibold, fontFamily: typography.fontFamily, backgroundColor: tipo === t.id ? colors.accentLight : 'transparent', color: tipo === t.id ? colors.accentText : colors.textMuted, transition: 'all 0.15s' }}>
                     {t.label}
                   </button>
