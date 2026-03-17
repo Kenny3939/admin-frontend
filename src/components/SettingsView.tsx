@@ -1,7 +1,8 @@
 // src/components/SettingsView.tsx
 import { useEffect, useState } from 'react';
-import { Settings, Clock, Calendar, Trash2, Plus, Save, Bell, X } from 'lucide-react';
+import { Clock, Calendar, Trash2, Plus, Save, Bell, X, MessageSquare } from 'lucide-react';
 import { supabase } from '../supabase';
+import { colors, typography, radius, shadow, spacing } from '../theme';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 interface BusinessSettings {
@@ -31,37 +32,77 @@ interface BlockedDate {
   reason: string | null;
 }
 
-// ─── Componente principal ─────────────────────────────────────────────────────
+// ─── Estilos base ─────────────────────────────────────────────────────────────
+const inputStyle: React.CSSProperties = {
+  width: '100%', padding: '9px 12px', borderRadius: radius.lg,
+  border: `1px solid ${colors.border}`, backgroundColor: colors.bgSubtle,
+  color: colors.textPrimary, fontSize: typography.sm,
+  fontFamily: typography.fontFamily, outline: 'none', boxSizing: 'border-box',
+};
+
+// ─── Sección card ─────────────────────────────────────────────────────────────
+function Section({ titulo, icono, children }: { titulo: string; icono: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div style={{ backgroundColor: colors.bgCard, border: `1px solid ${colors.border}`, borderRadius: radius.xl, boxShadow: shadow.sm, overflow: 'hidden', marginBottom: spacing.lg }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 20px', borderBottom: `1px solid ${colors.border}` }}>
+        <span style={{ color: colors.accent }}>{icono}</span>
+        <p style={{ margin: 0, fontSize: typography.sm, fontWeight: typography.semibold, color: colors.textPrimary }}>{titulo}</p>
+      </div>
+      <div style={{ padding: '20px' }}>{children}</div>
+    </div>
+  );
+}
+
+// ─── Campo de formulario ──────────────────────────────────────────────────────
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label style={{ display: 'block', fontSize: typography.xs, fontWeight: typography.semibold, color: colors.textSecondary, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
+      {children}
+      {hint && <p style={{ margin: '4px 0 0', fontSize: typography.xs, color: colors.textMuted }}>{hint}</p>}
+    </div>
+  );
+}
+
+// ─── Toggle switch ────────────────────────────────────────────────────────────
+function Toggle({ label, desc, value, onChange }: { label: string; desc: string; value: boolean; onChange: () => void }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: `1px solid ${colors.border}` }}>
+      <div>
+        <p style={{ margin: '0 0 2px', fontSize: typography.sm, fontWeight: typography.medium, color: colors.textPrimary }}>{label}</p>
+        <p style={{ margin: 0, fontSize: typography.xs, color: colors.textMuted }}>{desc}</p>
+      </div>
+      <button onClick={onChange} style={{ width: 40, height: 22, borderRadius: radius.full, border: 'none', cursor: 'pointer', backgroundColor: value ? colors.accent : colors.bgMuted, position: 'relative', transition: 'background-color 0.2s', flexShrink: 0 }}>
+        <span style={{ position: 'absolute', top: 2, width: 18, height: 18, borderRadius: '50%', backgroundColor: 'white', boxShadow: shadow.sm, transition: 'left 0.2s', left: value ? '20px' : '2px' }} />
+      </button>
+    </div>
+  );
+}
+
+// ─── Vista principal ──────────────────────────────────────────────────────────
 export function SettingsView({ negocio }: { negocio: string }) {
   const [tab, setTab] = useState<'general' | 'dias_libres'>('general');
 
   return (
-    <div>
-      <h2 className="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
-        <Settings size={22} className="text-indigo-600" /> Configuración
-      </h2>
+    <div style={{ animation: 'fadeIn 0.2s ease' }}>
+      <h1 style={{ margin: '0 0 24px', fontSize: typography.xxl, fontWeight: typography.bold, color: colors.textPrimary, letterSpacing: '-0.02em' }}>
+        Configuración
+      </h1>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
-        <button
-          onClick={() => setTab('general')}
-          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-            tab === 'general' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          General
-        </button>
-        <button
-          onClick={() => setTab('dias_libres')}
-          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-            tab === 'dias_libres' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          Días Libres
-        </button>
+      <div style={{ display: 'inline-flex', gap: 2, backgroundColor: colors.bgSubtle, padding: 3, borderRadius: radius.lg, border: `1px solid ${colors.border}`, marginBottom: spacing.xl }}>
+        {[{ id: 'general', label: 'General' }, { id: 'dias_libres', label: 'Días libres' }].map(t => {
+          const active = tab === t.id;
+          return (
+            <button key={t.id} onClick={() => setTab(t.id as any)}
+              style={{ padding: '6px 16px', borderRadius: radius.md, border: 'none', cursor: 'pointer', fontSize: typography.sm, fontWeight: typography.semibold, fontFamily: typography.fontFamily, backgroundColor: active ? colors.bgCard : 'transparent', color: active ? colors.textPrimary : colors.textMuted, boxShadow: active ? shadow.sm : 'none', transition: 'all 0.15s' }}>
+              {t.label}
+            </button>
+          );
+        })}
       </div>
 
-      {tab === 'general'    && <TabGeneral negocio={negocio} />}
+      {tab === 'general'     && <TabGeneral negocio={negocio} />}
       {tab === 'dias_libres' && <TabDiasLibres negocio={negocio} />}
     </div>
   );
@@ -76,19 +117,10 @@ function TabGeneral({ negocio }: { negocio: string }) {
 
   useEffect(() => {
     async function cargar() {
-
-      const r1 = await supabase
-        .from('businesses')
-        .select('name, open_time, close_time, capacity, timezone')
-        .eq('id', negocio)
-        .single();
-
-      const r2 = await supabase
-        .from('business_settings')
-        .select('appointment_duration_minutes, buffer_minutes, auto_confirm, reminder_24h, reminder_2h, off_hours_message')
-        .eq('business_id', negocio)
-        .single();
-
+      const [r1, r2] = await Promise.all([
+        supabase.from('businesses').select('name, open_time, close_time, capacity, timezone').eq('id', negocio).single(),
+        supabase.from('business_settings').select('appointment_duration_minutes, buffer_minutes, auto_confirm, reminder_24h, reminder_2h, off_hours_message').eq('business_id', negocio).single(),
+      ]);
       if (r1.data) setBusiness(r1.data);
       if (r2.data) setSettings(r2.data);
     }
@@ -98,179 +130,83 @@ function TabGeneral({ negocio }: { negocio: string }) {
   async function guardar() {
     if (!business || !settings) return;
     setGuardando(true);
-
     const [r1, r2] = await Promise.all([
-      supabase.from('businesses').update({
-        open_time: business.open_time,
-        close_time: business.close_time,
-        capacity: business.capacity,
-      }).eq('id', negocio),
-      supabase.from('business_settings').update({
-        appointment_duration_minutes: settings.appointment_duration_minutes,
-        buffer_minutes: settings.buffer_minutes,
-        auto_confirm: settings.auto_confirm,
-        reminder_24h: settings.reminder_24h,
-        reminder_2h: settings.reminder_2h,
-        off_hours_message: settings.off_hours_message,
-      }).eq('business_id', negocio),
+      supabase.from('businesses').update({ open_time: business.open_time, close_time: business.close_time, capacity: business.capacity }).eq('id', negocio),
+      supabase.from('business_settings').update({ appointment_duration_minutes: settings.appointment_duration_minutes, buffer_minutes: settings.buffer_minutes, auto_confirm: settings.auto_confirm, reminder_24h: settings.reminder_24h, reminder_2h: settings.reminder_2h, off_hours_message: settings.off_hours_message }).eq('business_id', negocio),
     ]);
-
     setGuardando(false);
     if (r1.error || r2.error) {
-      alert('Error al guardar: ' + (r1.error?.message || r2.error?.message));
+      alert('Error: ' + (r1.error?.message || r2.error?.message));
     } else {
       setGuardado(true);
       setTimeout(() => setGuardado(false), 3000);
     }
   }
 
-  if (!business || !settings) {
-    return (
-      <div className="space-y-4">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="animate-pulse h-14 bg-gray-100 rounded-xl" />
-        ))}
-      </div>
-    );
-  }
+  if (!business || !settings) return (
+    <div>
+      {[...Array(3)].map((_, i) => <div key={i} style={{ height: 120, borderRadius: radius.xl, backgroundColor: colors.bgMuted, marginBottom: 12, animation: 'pulse 1.5s ease-in-out infinite' }} />)}
+    </div>
+  );
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div style={{ maxWidth: 640 }}>
 
       {/* Horario */}
-      <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
-          <Clock size={16} className="text-indigo-500" /> Horario de Atención
-        </h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1.5">Apertura</label>
-            <input
-              type="time"
-              value={business.open_time?.slice(0, 5) || ''}
-              onChange={e => setBusiness({ ...business, open_time: e.target.value })}
-              className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1.5">Cierre</label>
-            <input
-              type="time"
-              value={business.close_time?.slice(0, 5) || ''}
-              onChange={e => setBusiness({ ...business, close_time: e.target.value })}
-              className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-            />
-          </div>
+      <Section titulo="Horario de atención" icono={<Clock size={14} />}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: spacing.lg }}>
+          <Field label="Apertura">
+            <input type="time" value={business.open_time?.slice(0, 5) || ''} onChange={e => setBusiness({ ...business, open_time: e.target.value })} style={inputStyle} />
+          </Field>
+          <Field label="Cierre">
+            <input type="time" value={business.close_time?.slice(0, 5) || ''} onChange={e => setBusiness({ ...business, close_time: e.target.value })} style={inputStyle} />
+          </Field>
         </div>
-      </div>
+      </Section>
 
       {/* Citas */}
-      <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
-          <Calendar size={16} className="text-indigo-500" /> Configuración de Citas
-        </h3>
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1.5">Duración por defecto (min)</label>
-            <input
-              type="number"
-              min="5" step="5"
-              value={settings.appointment_duration_minutes}
-              onChange={e => setSettings({ ...settings, appointment_duration_minutes: parseInt(e.target.value) })}
-              className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1.5">Buffer entre citas (min)</label>
-            <input
-              type="number"
-              min="0" step="5"
-              value={settings.buffer_minutes}
-              onChange={e => setSettings({ ...settings, buffer_minutes: parseInt(e.target.value) })}
-              className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-            />
-          </div>
+      <Section titulo="Configuración de citas" icono={<Calendar size={14} />}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: spacing.lg }}>
+          <Field label="Duración por defecto" hint="minutos">
+            <input type="number" min={5} step={5} value={settings.appointment_duration_minutes} onChange={e => setSettings({ ...settings, appointment_duration_minutes: parseInt(e.target.value) })} style={inputStyle} />
+          </Field>
+          <Field label="Buffer entre citas" hint="minutos de descanso">
+            <input type="number" min={0} step={5} value={settings.buffer_minutes} onChange={e => setSettings({ ...settings, buffer_minutes: parseInt(e.target.value) })} style={inputStyle} />
+          </Field>
+          <Field label="Capacidad simultánea" hint="empleados activos">
+            <input type="number" min={1} value={business.capacity} onChange={e => setBusiness({ ...business, capacity: parseInt(e.target.value) })} style={inputStyle} />
+          </Field>
         </div>
-        <div>
-          <label className="block text-sm font-semibold text-gray-600 mb-1.5">Capacidad simultánea</label>
-          <input
-            type="number"
-            min="1"
-            value={business.capacity}
-            onChange={e => setBusiness({ ...business, capacity: parseInt(e.target.value) })}
-            className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+        <div style={{ marginTop: spacing.lg, borderTop: `1px solid ${colors.border}`, paddingTop: spacing.lg }}>
+          <Toggle
+            label="Confirmación automática"
+            desc="Las citas se confirman inmediatamente sin revisión manual"
+            value={settings.auto_confirm}
+            onChange={() => setSettings({ ...settings, auto_confirm: !settings.auto_confirm })}
           />
-          <p className="text-xs text-gray-400 mt-1">Cuántos clientes pueden tener cita al mismo tiempo.</p>
         </div>
-
-        {/* Auto confirmar */}
-        <div className="flex items-center justify-between mt-4 p-3 bg-gray-50 rounded-lg">
-          <div>
-            <p className="text-sm font-semibold text-gray-700">Confirmación automática</p>
-            <p className="text-xs text-gray-400">El bot confirma citas sin revisión manual</p>
-          </div>
-          <button
-            onClick={() => setSettings({ ...settings, auto_confirm: !settings.auto_confirm })}
-            className={`w-11 h-6 rounded-full transition-colors relative ${settings.auto_confirm ? 'bg-indigo-600' : 'bg-gray-300'}`}
-          >
-            <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${settings.auto_confirm ? 'left-5' : 'left-0.5'}`} />
-          </button>
-        </div>
-      </div>
+      </Section>
 
       {/* Recordatorios */}
-      <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
-          <Bell size={16} className="text-indigo-500" /> Recordatorios por WhatsApp
-        </h3>
-        <div className="space-y-3">
-          {[
-            { key: 'reminder_24h', label: '24 horas antes', desc: 'Envía recordatorio el día anterior' },
-            { key: 'reminder_2h',  label: '2 horas antes',  desc: 'Envía recordatorio el mismo día' },
-          ].map(item => (
-            <div key={item.key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div>
-                <p className="text-sm font-semibold text-gray-700">{item.label}</p>
-                <p className="text-xs text-gray-400">{item.desc}</p>
-              </div>
-              <button
-                onClick={() => setSettings({ ...settings, [item.key]: !settings[item.key as keyof BusinessSettings] })}
-                className={`w-11 h-6 rounded-full transition-colors relative ${settings[item.key as keyof BusinessSettings] ? 'bg-indigo-600' : 'bg-gray-300'}`}
-              >
-                <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${settings[item.key as keyof BusinessSettings] ? 'left-5' : 'left-0.5'}`} />
-              </button>
-            </div>
-          ))}
+      <Section titulo="Recordatorios por WhatsApp" icono={<Bell size={14} />}>
+        <Toggle label="24 horas antes" desc="Aviso el día anterior a la cita" value={settings.reminder_24h} onChange={() => setSettings({ ...settings, reminder_24h: !settings.reminder_24h })} />
+        <div style={{ borderBottom: 'none' }}>
+          <Toggle label="2 horas antes" desc="Aviso el mismo día de la cita" value={settings.reminder_2h} onChange={() => setSettings({ ...settings, reminder_2h: !settings.reminder_2h })} />
         </div>
-      </div>
+      </Section>
 
       {/* Mensaje fuera de horario */}
-      <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <h3 className="font-bold text-gray-800 mb-1 flex items-center gap-2">
-          🌙 Mensaje fuera de horario
-        </h3>
-        <p className="text-xs text-gray-400 mb-3">
-          Se envía automáticamente cuando un cliente escribe fuera del horario de atención. El bot sigue funcionando y el cliente puede agendar igual.
-        </p>
-        <textarea
-          rows={3}
-          value={settings.off_hours_message || ''}
-          onChange={e => setSettings({ ...settings, off_hours_message: e.target.value })}
-          placeholder="🌙 ¡Hola! En este momento estamos fuera de horario. Puedes agendar tu cita igualmente y te confirmaremos cuando abramos. 😊"
-          className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
-        />
-      </div>
+      <Section titulo="Mensaje fuera de horario" icono={<MessageSquare size={14} />}>
+        <Field label="Mensaje automático" hint="Se envía cuando un cliente escribe fuera del horario de atención. El bot sigue funcionando normalmente.">
+          <textarea rows={3} value={settings.off_hours_message || ''} onChange={e => setSettings({ ...settings, off_hours_message: e.target.value })} placeholder="🌙 ¡Hola! En este momento estamos fuera de horario. Puedes agendar tu cita igualmente." style={{ ...inputStyle, resize: 'none' }} />
+        </Field>
+      </Section>
 
       {/* Botón guardar */}
-      <button
-        onClick={guardar}
-        disabled={guardando}
-        className={`w-full flex items-center justify-center gap-2 py-3 font-bold rounded-xl text-white transition-colors ${
-          guardado ? 'bg-emerald-500' : guardando ? 'bg-indigo-300' : 'bg-indigo-600 hover:bg-indigo-700'
-        }`}
-      >
-        <Save size={16} />
-        {guardado ? '✓ Guardado' : guardando ? 'Guardando...' : 'Guardar Cambios'}
+      <button onClick={guardar} disabled={guardando}
+        style={{ width: '100%', padding: '11px', borderRadius: radius.lg, border: 'none', backgroundColor: guardado ? colors.success : colors.accent, color: 'white', cursor: 'pointer', fontSize: typography.sm, fontWeight: typography.semibold, fontFamily: typography.fontFamily, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'background-color 0.2s' }}>
+        <Save size={14} />
+        {guardado ? '✓ Guardado correctamente' : guardando ? 'Guardando...' : 'Guardar cambios'}
       </button>
     </div>
   );
@@ -280,268 +216,183 @@ function TabGeneral({ negocio }: { negocio: string }) {
 function TabDiasLibres({ negocio }: { negocio: string }) {
   const [bloqueados, setBloqueados]   = useState<BlockedDate[]>([]);
   const [cargando, setCargando]       = useState(true);
-  const [mostrarForm, setMostrarForm] = useState(false);
+  const [modalOpen, setModalOpen]     = useState(false);
+  const [tipo, setTipo]               = useState<'full' | 'hours' | 'range'>('full');
+  const [startDate, setStartDate]     = useState('');
+  const [endDate, setEndDate]         = useState('');
+  const [startTime, setStartTime]     = useState('');
+  const [endTime, setEndTime]         = useState('');
+  const [reason, setReason]           = useState('');
+  const [guardando, setGuardando]     = useState(false);
 
-  // Form
-  const [tipoBloqueo, setTipo]   = useState<'full' | 'hours' | 'range'>('full');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate]     = useState('');
-  const [startTime, setStartTime] = useState('');
-  const [endTime, setEndTime]     = useState('');
-  const [razon, setRazon]         = useState('');
-  const [guardando, setGuardando] = useState(false);
+  useEffect(() => { cargar(); }, [negocio]);
 
   async function cargar() {
-    setCargando(true);
-    const { data } = await supabase
-      .from('blocked_dates')
-      .select('*')
-      .eq('business_id', negocio)
-      .order('start_date', { ascending: true });
+    const { data } = await supabase.from('blocked_dates').select('*').eq('business_id', negocio).order('start_date');
     setBloqueados(data || []);
     setCargando(false);
   }
 
-  useEffect(() => { cargar(); }, [negocio]);
+  async function guardar() {
+    if (!startDate) return;
+    setGuardando(true);
+    const payload: any = {
+      business_id: negocio,
+      start_date: startDate,
+      end_date: tipo === 'range' ? endDate : startDate,
+      is_full_day: tipo !== 'hours',
+      reason: reason || null,
+      start_time: tipo === 'hours' ? startTime : null,
+      end_time: tipo === 'hours' ? endTime : null,
+    };
+    const { error } = await supabase.from('blocked_dates').insert([payload]);
+    if (error) alert('Error: ' + error.message);
+    else { setModalOpen(false); setStartDate(''); setEndDate(''); setStartTime(''); setEndTime(''); setReason(''); setTipo('full'); cargar(); }
+    setGuardando(false);
+  }
 
   async function eliminar(id: string) {
-    if (!confirm('¿Eliminar este bloqueo?')) return;
     await supabase.from('blocked_dates').delete().eq('id', id);
     setBloqueados(prev => prev.filter(b => b.id !== id));
   }
 
-  async function guardar() {
-    if (!startDate) { alert('Selecciona una fecha de inicio'); return; }
-    if (tipoBloqueo === 'range' && !endDate) { alert('Selecciona fecha de fin'); return; }
-    if (tipoBloqueo === 'hours' && (!startTime || !endTime)) { alert('Selecciona rango de horas'); return; }
-    setGuardando(true);
+  const hoy     = new Date().toISOString().split('T')[0];
+  const proximos = bloqueados.filter(b => b.end_date >= hoy);
+  const pasados  = bloqueados.filter(b => b.end_date < hoy);
 
-    const payload = {
-      business_id: negocio,
-      start_date:  startDate,
-      end_date:    tipoBloqueo === 'range' ? endDate : startDate,
-      is_full_day: tipoBloqueo !== 'hours',
-      start_time:  tipoBloqueo === 'hours' ? startTime : null,
-      end_time:    tipoBloqueo === 'hours' ? endTime   : null,
-      reason:      razon || null,
-    };
-
-    const { data, error } = await supabase.from('blocked_dates').insert([payload]).select().single();
-    if (error) {
-      alert('Error: ' + error.message);
-    } else {
-      setBloqueados(prev => [...prev, data].sort((a, b) => a.start_date.localeCompare(b.start_date)));
-      resetForm();
+  const formatBloqueo = (b: BlockedDate) => {
+    const d1 = new Date(b.start_date + 'T12:00:00').toLocaleDateString('es-GT', { day: 'numeric', month: 'short', year: 'numeric' });
+    if (b.start_date !== b.end_date) {
+      const d2 = new Date(b.end_date + 'T12:00:00').toLocaleDateString('es-GT', { day: 'numeric', month: 'short', year: 'numeric' });
+      return `${d1} — ${d2}`;
     }
-    setGuardando(false);
-  }
-
-  function resetForm() {
-    setMostrarForm(false);
-    setTipo('full');
-    setStartDate(''); setEndDate('');
-    setStartTime(''); setEndTime('');
-    setRazon('');
-  }
-
-  function formatearFecha(d: string) {
-    return new Date(d + 'T12:00:00').toLocaleDateString('es-GT', { day: '2-digit', month: 'short', year: 'numeric' });
-  }
-
-  function describir(b: BlockedDate) {
-    if (!b.is_full_day) return `${b.start_time?.slice(0,5)} – ${b.end_time?.slice(0,5)}`;
-    if (b.start_date !== b.end_date) return `${formatearFecha(b.start_date)} al ${formatearFecha(b.end_date)}`;
-    return 'Día completo';
-  }
-
-  const hoy = new Date().toISOString().split('T')[0];
-  const proximos  = bloqueados.filter(b => b.end_date >= hoy);
-  const pasados   = bloqueados.filter(b => b.end_date < hoy);
+    if (!b.is_full_day && b.start_time && b.end_time) return `${d1} · ${b.start_time.slice(0,5)} - ${b.end_time.slice(0,5)}`;
+    return d1;
+  };
 
   return (
-    <div className="max-w-2xl space-y-5">
-
-      {/* Botón agregar */}
-      <div className="flex justify-between items-center">
-        <p className="text-sm text-gray-500">
-          Bloquea días o rangos de horas para que el bot no ofrezca esos horarios.
-        </p>
-        <button
-          onClick={() => setMostrarForm(true)}
-          className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors shadow-sm shrink-0"
-        >
-          <Plus size={16} /> Nuevo bloqueo
+    <div style={{ maxWidth: 640 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xl }}>
+        <div>
+          <p style={{ margin: '0 0 2px', fontSize: typography.sm, fontWeight: typography.semibold, color: colors.textPrimary }}>Días y horarios bloqueados</p>
+          <p style={{ margin: 0, fontSize: typography.xs, color: colors.textMuted }}>Los clientes no podrán agendar en estas fechas u horarios.</p>
+        </div>
+        <button onClick={() => setModalOpen(true)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: radius.lg, border: 'none', backgroundColor: colors.accent, color: 'white', cursor: 'pointer', fontSize: typography.sm, fontWeight: typography.semibold, fontFamily: typography.fontFamily, boxShadow: shadow.sm }}>
+          <Plus size={13} /> Agregar
         </button>
       </div>
 
-      {/* Lista próximos bloqueos */}
       {cargando ? (
-        <div className="space-y-3">
-          {[...Array(2)].map((_, i) => <div key={i} className="animate-pulse h-16 bg-gray-100 rounded-xl" />)}
-        </div>
-      ) : proximos.length === 0 ? (
-        <div className="text-center py-12 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl text-sm">
-          No hay días bloqueados próximos.
-        </div>
+        [...Array(3)].map((_, i) => <div key={i} style={{ height: 56, borderRadius: radius.lg, backgroundColor: colors.bgMuted, marginBottom: 6, animation: 'pulse 1.5s ease-in-out infinite' }} />)
       ) : (
-        <div className="space-y-3">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Próximos</p>
-          {proximos.map(b => (
-            <div key={b.id} className="bg-white border border-red-100 rounded-xl p-4 flex justify-between items-center shadow-sm">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 font-semibold text-gray-800 text-sm">
-                  <Calendar size={14} className="text-red-400" />
-                  {b.start_date === b.end_date
-                    ? formatearFecha(b.start_date)
-                    : `${formatearFecha(b.start_date)} → ${formatearFecha(b.end_date)}`
-                  }
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                    b.is_full_day ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'
-                  }`}>
-                    {describir(b)}
-                  </span>
-                  {b.reason && <span className="text-xs text-gray-500 italic">{b.reason}</span>}
-                </div>
-              </div>
-              <button
-                onClick={() => eliminar(b.id)}
-                className="text-gray-300 hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50"
-              >
-                <Trash2 size={15} />
-              </button>
+        <>
+          {proximos.length === 0 && pasados.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '48px', border: `2px dashed ${colors.border}`, borderRadius: radius.xl, color: colors.textMuted, fontSize: typography.sm }}>
+              No hay fechas bloqueadas.
             </div>
-          ))}
-        </div>
-      )}
-
-      {/* Pasados colapsados */}
-      {pasados.length > 0 && (
-        <details className="group">
-          <summary className="text-xs font-semibold text-gray-400 uppercase tracking-wide cursor-pointer select-none hover:text-gray-600">
-            Pasados ({pasados.length}) ▸
-          </summary>
-          <div className="mt-3 space-y-2">
-            {pasados.map(b => (
-              <div key={b.id} className="bg-gray-50 border border-gray-100 rounded-xl p-3 flex justify-between items-center opacity-60">
-                <div className="space-y-0.5">
-                  <p className="text-sm font-medium text-gray-600">
-                    {b.start_date === b.end_date
-                      ? formatearFecha(b.start_date)
-                      : `${formatearFecha(b.start_date)} → ${formatearFecha(b.end_date)}`}
-                  </p>
-                  <p className="text-xs text-gray-400">{describir(b)} {b.reason && `· ${b.reason}`}</p>
-                </div>
-                <button onClick={() => eliminar(b.id)} className="text-gray-300 hover:text-red-400 transition-colors p-1">
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </details>
-      )}
-
-      {/* Modal nuevo bloqueo */}
-      {mostrarForm && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden">
-
-            <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-red-50">
-              <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">
-                <Calendar size={18} className="text-red-500" /> Nuevo Día Bloqueado
-              </h3>
-              <button onClick={resetForm} className="text-gray-400 hover:text-red-500 transition-colors">
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4">
-
-              {/* Tipo de bloqueo */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo de bloqueo</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { id: 'full',  label: 'Día completo' },
-                    { id: 'hours', label: 'Rango de horas' },
-                    { id: 'range', label: 'Varios días' },
-                  ].map(t => (
-                    <button
-                      key={t.id}
-                      onClick={() => setTipo(t.id as any)}
-                      className={`py-2 px-3 text-xs font-semibold rounded-lg border transition-colors ${
-                        tipoBloqueo === t.id
-                          ? 'bg-red-50 border-red-300 text-red-700'
-                          : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-gray-300'
-                      }`}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Fechas */}
-              <div className={`grid gap-3 ${tipoBloqueo === 'range' ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    {tipoBloqueo === 'range' ? 'Fecha inicio' : 'Fecha'}
-                  </label>
-                  <input type="date" value={startDate} min={hoy}
-                    onChange={e => setStartDate(e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none" />
-                </div>
-                {tipoBloqueo === 'range' && (
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Fecha fin</label>
-                    <input type="date" value={endDate} min={startDate || hoy}
-                      onChange={e => setEndDate(e.target.value)}
-                      className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none" />
-                  </div>
-                )}
-              </div>
-
-              {/* Horas (solo si es rango de horas) */}
-              {tipoBloqueo === 'hours' && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Desde</label>
-                    <input type="time" value={startTime}
-                      onChange={e => setStartTime(e.target.value)}
-                      className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Hasta</label>
-                    <input type="time" value={endTime}
-                      onChange={e => setEndTime(e.target.value)}
-                      className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none" />
+          ) : (
+            <>
+              {proximos.length > 0 && (
+                <div style={{ marginBottom: spacing.xl }}>
+                  <p style={{ margin: '0 0 10px', fontSize: typography.xs, fontWeight: typography.semibold, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Próximos</p>
+                  <div style={{ backgroundColor: colors.bgCard, border: `1px solid ${colors.border}`, borderRadius: radius.xl, boxShadow: shadow.sm, overflow: 'hidden' }}>
+                    {proximos.map((b, i) => (
+                      <div key={b.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: i < proximos.length - 1 ? `1px solid ${colors.border}` : 'none' }}>
+                        <div>
+                          <p style={{ margin: '0 0 2px', fontSize: typography.sm, fontWeight: typography.medium, color: colors.textPrimary }}>{formatBloqueo(b)}</p>
+                          <p style={{ margin: 0, fontSize: typography.xs, color: colors.textMuted }}>
+                            {b.is_full_day ? 'Día completo' : 'Rango de horas'}{b.reason ? ` · ${b.reason}` : ''}
+                          </p>
+                        </div>
+                        <button onClick={() => eliminar(b.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.textMuted, padding: 6, borderRadius: radius.md, display: 'flex' }}
+                          onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.danger}
+                          onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.textMuted}>
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
 
-              {/* Razón */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                  Motivo <span className="text-gray-400 font-normal">(opcional)</span>
-                </label>
-                <input type="text" placeholder="Ej: Feriado nacional, Vacaciones..."
-                  value={razon} onChange={e => setRazon(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none" />
+              {pasados.length > 0 && (
+                <div>
+                  <p style={{ margin: '0 0 10px', fontSize: typography.xs, fontWeight: typography.semibold, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pasados</p>
+                  <div style={{ backgroundColor: colors.bgCard, border: `1px solid ${colors.border}`, borderRadius: radius.xl, boxShadow: shadow.sm, overflow: 'hidden', opacity: 0.6 }}>
+                    {pasados.map((b, i) => (
+                      <div key={b.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: i < pasados.length - 1 ? `1px solid ${colors.border}` : 'none' }}>
+                        <div>
+                          <p style={{ margin: '0 0 2px', fontSize: typography.sm, color: colors.textSecondary }}>{formatBloqueo(b)}</p>
+                          <p style={{ margin: 0, fontSize: typography.xs, color: colors.textMuted }}>{b.reason || (b.is_full_day ? 'Día completo' : 'Rango de horas')}</p>
+                        </div>
+                        <button onClick={() => eliminar(b.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.textMuted, padding: 6, borderRadius: radius.md, display: 'flex' }}>
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {/* Modal */}
+      {modalOpen && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
+          <div style={{ backgroundColor: colors.bgCard, borderRadius: radius.xxl, boxShadow: shadow.lg, width: '100%', maxWidth: 400, overflow: 'hidden', animation: 'fadeIn 0.15s ease' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 20px', borderBottom: `1px solid ${colors.border}` }}>
+              <p style={{ margin: 0, fontSize: typography.md, fontWeight: typography.bold, color: colors.textPrimary }}>Agregar bloqueo</p>
+              <button onClick={() => setModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.textMuted, padding: 4, display: 'flex', borderRadius: radius.md }}>
+                <X size={16} />
+              </button>
+            </div>
+            <div style={{ padding: '20px' }}>
+              {/* Tipo */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, marginBottom: spacing.lg }}>
+                {[{ id: 'full', label: 'Día completo' }, { id: 'hours', label: 'Rango horas' }, { id: 'range', label: 'Varios días' }].map(t => (
+                  <button key={t.id} onClick={() => setTipo(t.id as any)}
+                    style={{ padding: '7px', borderRadius: radius.md, border: `1px solid ${tipo === t.id ? colors.accent : colors.border}`, cursor: 'pointer', fontSize: typography.xs, fontWeight: typography.semibold, fontFamily: typography.fontFamily, backgroundColor: tipo === t.id ? colors.accentLight : 'transparent', color: tipo === t.id ? colors.accentText : colors.textMuted, transition: 'all 0.15s' }}>
+                    {t.label}
+                  </button>
+                ))}
               </div>
 
-              {/* Botones */}
-              <div className="flex gap-3 pt-1">
-                <button onClick={resetForm}
-                  className="flex-1 py-3 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-colors text-sm">
-                  Cancelar
-                </button>
-                <button onClick={guardar} disabled={guardando}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3 font-semibold rounded-xl text-white text-sm transition-colors ${
-                    guardando ? 'bg-red-300' : 'bg-red-500 hover:bg-red-600'
-                  }`}>
-                  <Save size={15} />
-                  {guardando ? 'Guardando...' : 'Bloquear Fecha'}
+              <div style={{ display: 'grid', gridTemplateColumns: tipo === 'range' ? '1fr 1fr' : '1fr', gap: spacing.md, marginBottom: spacing.md }}>
+                <Field label={tipo === 'range' ? 'Fecha inicio' : 'Fecha'}>
+                  <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} style={inputStyle} />
+                </Field>
+                {tipo === 'range' && (
+                  <Field label="Fecha fin">
+                    <input type="date" value={endDate} min={startDate} onChange={e => setEndDate(e.target.value)} style={inputStyle} />
+                  </Field>
+                )}
+              </div>
+
+              {tipo === 'hours' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: spacing.md, marginBottom: spacing.md }}>
+                  <Field label="Hora inicio">
+                    <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={inputStyle} />
+                  </Field>
+                  <Field label="Hora fin">
+                    <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={inputStyle} />
+                  </Field>
+                </div>
+              )}
+
+              <div style={{ marginBottom: spacing.lg }}>
+                <Field label="Motivo (opcional)">
+                  <input type="text" value={reason} onChange={e => setReason(e.target.value)} placeholder="Ej: Día festivo, vacaciones..." style={inputStyle} />
+                </Field>
+              </div>
+
+              <div style={{ display: 'flex', gap: spacing.sm }}>
+                <button onClick={() => setModalOpen(false)} style={{ flex: 1, padding: '9px', borderRadius: radius.lg, border: `1px solid ${colors.border}`, backgroundColor: colors.bgSubtle, color: colors.textSecondary, cursor: 'pointer', fontSize: typography.sm, fontWeight: typography.semibold, fontFamily: typography.fontFamily }}>Cancelar</button>
+                <button onClick={guardar} disabled={guardando || !startDate || (tipo === 'range' && !endDate) || (tipo === 'hours' && (!startTime || !endTime))}
+                  style={{ flex: 1, padding: '9px', borderRadius: radius.lg, border: 'none', backgroundColor: colors.accent, color: 'white', cursor: 'pointer', fontSize: typography.sm, fontWeight: typography.semibold, fontFamily: typography.fontFamily, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <Save size={13} /> {guardando ? 'Guardando...' : 'Guardar'}
                 </button>
               </div>
             </div>
