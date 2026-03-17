@@ -4,42 +4,122 @@
 
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;400;500;600;700&display=swap');
 
-* {
-  box-sizing: border-box;
+/* ─── Tokens modo claro ─────────────────────────────────────────────────────── */
+:root {
+  --bg-page:        #F5F5F3;
+  --bg-card:        #FFFFFF;
+  --bg-subtle:      #F0F0EE;
+  --bg-muted:       #E8E8E6;
+  --bg-hover:       #ECECEA;
+
+  --text-primary:   #1A1A1A;
+  --text-secondary: #5A5A5A;
+  --text-muted:     #9A9A9A;
+  --text-disabled:  #C8C8C8;
+  --text-inverse:   #FFFFFF;
+
+  --border:         #E4E4E2;
+  --border-strong:  #CBCBC9;
+
+  --accent:         #2563EB;
+  --accent-hover:   #1D4ED8;
+  --accent-light:   #EFF6FF;
+  --accent-text:    #1D4ED8;
+
+  --success:        #16A34A;
+  --success-light:  #F0FDF4;
+  --warning:        #D97706;
+  --warning-light:  #FFFBEB;
+  --danger:         #DC2626;
+  --danger-light:   #FEF2F2;
+  --info:           #0284C7;
+  --info-light:     #F0F9FF;
+
+  --shadow-sm:      0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:      0 1px 4px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-lg:      0 4px 12px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.04);
+
+  --sidebar-bg:     #0C0C0C;
+  --sidebar-border: #1F1F1F;
+  --sidebar-hover:  #141414;
+  --sidebar-active: #1A1A1A;
+  --sidebar-text:   #666666;
+  --sidebar-text-active: #FFFFFF;
+
+  --topbar-bg:      #FFFFFF;
+  --topbar-border:  #E4E4E2;
 }
+
+/* ─── Tokens modo oscuro ────────────────────────────────────────────────────── */
+[data-theme="dark"] {
+  --bg-page:        #111111;
+  --bg-card:        #1A1A1A;
+  --bg-subtle:      #222222;
+  --bg-muted:       #2A2A2A;
+  --bg-hover:       #252525;
+
+  --text-primary:   #EFEFEF;
+  --text-secondary: #A0A0A0;
+  --text-muted:     #666666;
+  --text-disabled:  #444444;
+  --text-inverse:   #111111;
+
+  --border:         #2A2A2A;
+  --border-strong:  #383838;
+
+  --accent:         #3B82F6;
+  --accent-hover:   #2563EB;
+  --accent-light:   #1E3A5F;
+  --accent-text:    #93C5FD;
+
+  --success:        #22C55E;
+  --success-light:  #052E16;
+  --warning:        #F59E0B;
+  --warning-light:  #1C1500;
+  --danger:         #EF4444;
+  --danger-light:   #2D0000;
+  --info:           #38BDF8;
+  --info-light:     #0C1A2E;
+
+  --shadow-sm:      0 1px 2px rgba(0,0,0,0.3);
+  --shadow-md:      0 1px 4px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-lg:      0 4px 12px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.3);
+
+  --topbar-bg:      #1A1A1A;
+  --topbar-border:  #2A2A2A;
+}
+
+/* ─── Base ──────────────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; }
 
 body {
   font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  transition: background-color 0.2s, color 0.2s;
 }
 
+/* ─── Animaciones ───────────────────────────────────────────────────────────── */
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.4; }
 }
-
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
-
 @keyframes slideInRight {
-  from { transform: translateX(20px); opacity: 0; }
+  from { transform: translateX(16px); opacity: 0; }
   to   { transform: translateX(0);    opacity: 1; }
 }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 
-/* Scrollbar sutil */
-::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #D0D0CE;
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #AAAAAA;
-}
+/* ─── Scrollbar sutil ───────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }

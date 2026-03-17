@@ -5,6 +5,7 @@ import { getProfileByAuthId, logout } from './services/auth.service';
 import { LoginPage } from './components/LoginPage';
 import { SuperadminPage } from './components/SuperadminPage';
 import { Sidebar } from './components/Sidebar';
+import { Topbar, ThemeProvider } from './components/Topbar';
 import { AgendaView } from './components/AgendaView';
 import { DashboardView } from './components/DashboardView';
 import { ClientsView } from './components/ClientsView';
@@ -44,9 +45,8 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const bp = useBreakpoint();
 
-  // Margen izquierdo dinámico según estado de sidebar
   const marginLeft = bp === 'mobile' ? '0px' : (bp === 'tablet' || sidebarCollapsed) ? '64px' : '224px';
-  const paddingTop = bp === 'mobile' ? '56px' : '0px'; // espacio para topbar móvil
+  const paddingTop = bp === 'mobile' ? '56px' : '52px';
 
   useEffect(() => {
     async function inicializar() {
@@ -106,17 +106,19 @@ export default function App() {
 
   if (cargando) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#0C0C0C' }}>
-        <div className="text-center space-y-4">
-          <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm" style={{ color: '#555' }}>Cargando...</p>
+      <ThemeProvider>
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-page)' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ width: 28, height: 28, border: '2px solid var(--accent)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.6s linear infinite', margin: '0 auto 12px' }} />
+            <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>Cargando...</p>
+          </div>
         </div>
-      </div>
+      </ThemeProvider>
     );
   }
 
-  if (!perfil) return <LoginPage onLogin={() => {}} />;
-  if (perfil.role === 'superadmin') return <SuperadminPage onLogout={() => logout()} />;
+  if (!perfil) return <ThemeProvider><LoginPage onLogin={() => {}} /></ThemeProvider>;
+  if (perfil.role === 'superadmin') return <ThemeProvider><SuperadminPage onLogout={() => logout()} /></ThemeProvider>;
 
   function renderVista() {
     switch (vistaActual) {
@@ -130,25 +132,25 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#F7F7F6', fontFamily: "'DM Sans', sans-serif" }}>
-      <Sidebar
-        vistaActual={vistaActual}
-        onCambiarVista={(v) => setVista(v as Vista)}
-        onLogout={() => logout()}
-        email={perfil.email}
-        role={perfil.role}
-        negocio={perfil.business_id}
-        nombreNegocio={nombreNegocio}
-        onCollapseChange={setSidebarCollapsed}
-      />
-      <main
-        className="min-h-screen transition-all duration-200"
-        style={{ marginLeft, paddingTop }}
-      >
-        <div className="max-w-5xl mx-auto px-6 py-8">
-          {renderVista()}
-        </div>
-      </main>
-    </div>
+    <ThemeProvider>
+      <div style={{ minHeight: '100vh', backgroundColor: 'var(--bg-page)', fontFamily: "'DM Sans', sans-serif" }}>
+        <Sidebar
+          vistaActual={vistaActual}
+          onCambiarVista={(v) => setVista(v as Vista)}
+          onLogout={() => logout()}
+          email={perfil.email}
+          role={perfil.role}
+          negocio={perfil.business_id}
+          nombreNegocio={nombreNegocio}
+          onCollapseChange={setSidebarCollapsed}
+        />
+        <Topbar vistaActual={vistaActual} marginLeft={marginLeft} />
+        <main style={{ marginLeft, paddingTop, transition: 'margin-left 0.2s', minHeight: '100vh' }}>
+          <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '32px 24px' }}>
+            {renderVista()}
+          </div>
+        </main>
+      </div>
+    </ThemeProvider>
   );
 }
