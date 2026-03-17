@@ -28,11 +28,11 @@ interface Notificacion {
 }
 
 const NAV_ITEMS: { id: Vista; label: string; icono: React.ReactNode }[] = [
-  { id: 'dashboard',     label: 'Dashboard',     icono: <LayoutDashboard size={16} /> },
-  { id: 'agenda',        label: 'Agenda',         icono: <Calendar size={16} /> },
-  { id: 'clientes',      label: 'Clientes',       icono: <Users size={16} /> },
-  { id: 'servicios',     label: 'Servicios',      icono: <Scissors size={16} /> },
-  { id: 'configuracion', label: 'Configuración',  icono: <Settings size={16} /> },
+  { id: 'dashboard',     label: 'Dashboard',     icono: <LayoutDashboard size={18} /> },
+  { id: 'agenda',        label: 'Agenda',        icono: <Calendar size={18} /> },
+  { id: 'clientes',      label: 'Clientes',      icono: <Users size={18} /> },
+  { id: 'servicios',     label: 'Servicios',     icono: <Scissors size={18} /> },
+  { id: 'configuracion', label: 'Configuración', icono: <Settings size={18} /> },
 ];
 
 const ROLE_LABEL: Record<string, string> = {
@@ -68,7 +68,7 @@ export function Sidebar({
 
   const noVistas   = notifs.filter(n => !n.seen).length;
   const isCollapsed = bp === 'tablet' || (bp === 'desktop' && collapsed);
-  const sidebarW   = isCollapsed ? '64px' : '224px';
+  const sidebarW   = isCollapsed ? '72px' : '240px'; // Ligeramente más ancho para respirar mejor
   const showSidebar = bp !== 'mobile' || mobileOpen;
 
   function toggleCollapse() {
@@ -114,20 +114,15 @@ export function Sidebar({
     <>
       {/* ── Botón hamburguesa (solo móvil) ── */}
       {bp === 'mobile' && (
-        <div className="fixed top-0 left-0 right-0 z-40 flex items-center px-4 h-14"
-          style={{ backgroundColor: '#0C0C0C', borderBottom: '1px solid #1F1F1F' }}>
-          <button onClick={() => setMobileOpen(true)} style={{ color: '#777' }}
-            className="hover:text-white transition-colors p-1">
+        <div className="fixed top-0 left-0 right-0 z-40 flex items-center px-4 h-14 bg-[#0A0A0A]/80 backdrop-blur-md border-b border-white/10">
+          <button onClick={() => setMobileOpen(true)} className="text-zinc-400 hover:text-white transition-colors p-1 rounded-md">
             <Menu size={20} />
           </button>
-          <span className="ml-3 text-white font-semibold text-sm">{nombreNegocio || 'Panel Admin'}</span>
+          <span className="ml-3 text-white font-medium text-sm tracking-wide">{nombreNegocio || 'Panel Admin'}</span>
           {noVistas > 0 && (
-            <button onClick={abrirNotifs} className="ml-auto relative p-1" style={{ color: '#777' }}>
+            <button onClick={abrirNotifs} className="ml-auto relative p-1 text-zinc-400 hover:text-white transition-colors">
               <Bell size={18} />
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full text-xs font-bold flex items-center justify-center"
-                style={{ backgroundColor: '#EF4444', color: 'white', fontSize: '10px' }}>
-                {noVistas > 9 ? '9+' : noVistas}
-              </span>
+              <span className="absolute 0 right-0 w-2 h-2 rounded-full bg-blue-500 ring-2 ring-[#0A0A0A]" />
             </button>
           )}
         </div>
@@ -135,57 +130,46 @@ export function Sidebar({
 
       {/* ── Overlay móvil ── */}
       {bp === 'mobile' && mobileOpen && (
-        <div className="fixed inset-0 z-40 bg-black/60" onClick={() => setMobileOpen(false)} />
+        <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setMobileOpen(false)} />
       )}
 
       {/* ── Sidebar ── */}
       {showSidebar && (
         <aside
-          className="fixed left-0 top-0 h-screen flex flex-col z-50 transition-all duration-200"
-          style={{
-            width: bp === 'mobile' ? '224px' : sidebarW,
-            backgroundColor: '#0C0C0C',
-            borderRight: '1px solid #1F1F1F',
-            position: 'fixed',
-          }}
+          className={`fixed left-0 top-0 h-screen flex flex-col z-50 transition-all duration-300 ease-in-out bg-[#0A0A0A] border-r border-white/5`}
+          style={{ width: bp === 'mobile' ? '240px' : sidebarW }}
         >
           {/* Logo */}
-          <div className="flex items-center px-3 py-4 shrink-0"
-            style={{ borderBottom: '1px solid #1F1F1F', height: '64px', gap: '10px' }}>
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold"
-              style={{ backgroundColor: '#2563EB', color: 'white', letterSpacing: '-0.5px' }}>
+          <div className="flex items-center px-4 py-5 shrink-0 h-[72px] gap-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/20">
               {(nombreNegocio || 'PA').slice(0, 2).toUpperCase()}
             </div>
             {!isCollapsed && (
-              <div className="flex-1 min-w-0">
-                <p className="text-white font-semibold text-sm truncate leading-none">{nombreNegocio || 'Panel Admin'}</p>
-                <p className="text-xs mt-0.5 truncate" style={{ color: '#555' }}>Secretaría Virtual</p>
+              <div className="flex-1 min-w-0 transition-opacity duration-300">
+                <p className="text-zinc-100 font-semibold text-sm truncate tracking-wide">{nombreNegocio || 'Panel Admin'}</p>
+                <p className="text-xs text-zinc-500 truncate mt-0.5">Secretaría Virtual</p>
               </div>
             )}
             {bp === 'mobile' && (
-              <button onClick={() => setMobileOpen(false)} style={{ color: '#555' }}
-                className="hover:text-white transition-colors p-1 ml-auto">
-                <X size={16} />
+              <button onClick={() => setMobileOpen(false)} className="text-zinc-500 hover:text-white transition-colors p-1 ml-auto">
+                <X size={18} />
               </button>
             )}
           </div>
 
-          {/* Botón colapsar flotante en el borde (solo desktop) */}
+          {/* Botón colapsar flotante (solo desktop) */}
           {bp === 'desktop' && (
             <button
               onClick={toggleCollapse}
-              className="absolute -right-3 top-5 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-150 shadow-md"
-              style={{ backgroundColor: '#1F1F1F', border: '1px solid #333', color: '#666', zIndex: 10 }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = '#2A2A2A'; (e.currentTarget as HTMLElement).style.color = '#CCC'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = '#1F1F1F'; (e.currentTarget as HTMLElement).style.color = '#666'; }}
+              className="absolute -right-3.5 top-6 w-7 h-7 rounded-full flex items-center justify-center transition-all duration-200 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 hover:border-zinc-700 shadow-sm z-10"
               title={collapsed ? 'Expandir sidebar' : 'Colapsar sidebar'}
             >
-              {collapsed ? <PanelLeft size={12} /> : <PanelLeftClose size={12} />}
+              {collapsed ? <PanelLeft size={14} /> : <PanelLeftClose size={14} />}
             </button>
           )}
 
           {/* Nav */}
-          <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
             {NAV_ITEMS.map(item => {
               const activo = vistaActual === item.id;
               return (
@@ -193,27 +177,28 @@ export function Sidebar({
                   key={item.id}
                   onClick={() => navegar(item.id)}
                   title={isCollapsed ? item.label : undefined}
-                  className="w-full flex items-center rounded-lg text-sm font-medium transition-all duration-150"
-                  style={{
-                    padding: isCollapsed ? '10px 0' : '10px 12px',
-                    justifyContent: isCollapsed ? 'center' : 'flex-start',
-                    gap: isCollapsed ? '0' : '10px',
-                    backgroundColor: activo ? '#1A1A1A' : 'transparent',
-                    color: activo ? '#FFFFFF' : '#666',
-                  }}
-                  onMouseEnter={e => { if (!activo) { (e.currentTarget as HTMLElement).style.backgroundColor = '#141414'; (e.currentTarget as HTMLElement).style.color = '#CCC'; } }}
-                  onMouseLeave={e => { if (!activo) { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#666'; } }}
+                  className={`w-full group flex items-center rounded-xl text-sm font-medium transition-all duration-200 ${
+                    isCollapsed ? 'justify-center p-2.5' : 'justify-start px-3 py-2.5 gap-3'
+                  } ${
+                    activo 
+                      ? 'bg-white/10 text-white shadow-sm' 
+                      : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-100'
+                  }`}
                 >
-                  <span style={{ color: activo ? '#3B82F6' : 'inherit', flexShrink: 0 }}>{item.icono}</span>
+                  <span className={`${activo ? 'text-blue-400' : 'text-zinc-500 group-hover:text-zinc-300'} transition-colors flex-shrink-0`}>
+                    {item.icono}
+                  </span>
+                  
                   {!isCollapsed && (
                     <>
                       <span className="flex-1 text-left">{item.label}</span>
-                      {activo && <ChevronRight size={13} style={{ color: '#333', flexShrink: 0 }} />}
+                      {activo && <ChevronRight size={14} className="text-zinc-600 flex-shrink-0" />}
                     </>
                   )}
+
                   {/* Punto activo en modo colapsado */}
                   {isCollapsed && activo && (
-                    <span className="absolute right-2 w-1 h-1 rounded-full bg-blue-500" />
+                    <span className="absolute left-1 w-1 h-1 rounded-full bg-blue-400" />
                   )}
                 </button>
               );
@@ -221,59 +206,45 @@ export function Sidebar({
           </nav>
 
           {/* Bottom */}
-          <div className="px-2 pb-3 shrink-0" style={{ borderTop: '1px solid #1F1F1F', paddingTop: '10px' }}>
-
+          <div className="p-3 shrink-0 border-t border-white/5">
             {/* Notificaciones */}
             <button
               onClick={abrirNotifs}
               title={isCollapsed ? 'Notificaciones' : undefined}
-              className="w-full flex items-center rounded-lg text-sm font-medium transition-all duration-150 relative"
-              style={{
-                padding: isCollapsed ? '10px 0' : '10px 12px',
-                justifyContent: isCollapsed ? 'center' : 'flex-start',
-                gap: isCollapsed ? '0' : '10px',
-                color: '#666',
-              }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = '#141414'; (e.currentTarget as HTMLElement).style.color = '#CCC'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#666'; }}
+              className={`w-full group flex items-center rounded-xl text-sm font-medium transition-all duration-200 mb-1 ${
+                isCollapsed ? 'justify-center p-2.5' : 'justify-start px-3 py-2.5 gap-3'
+              } text-zinc-400 hover:bg-white/5 hover:text-zinc-100 relative`}
             >
-              <Bell size={16} style={{ flexShrink: 0 }} />
+              <Bell size={18} className="text-zinc-500 group-hover:text-zinc-300 transition-colors flex-shrink-0" />
               {!isCollapsed && <span className="flex-1 text-left">Notificaciones</span>}
               {noVistas > 0 && (
-                <span className={`font-bold rounded-full flex items-center justify-center ${isCollapsed ? 'absolute -top-0.5 -right-0.5 w-4 h-4 text-[10px]' : 'px-1.5 py-0.5 text-xs'}`}
-                  style={{ backgroundColor: '#EF4444', color: 'white', minWidth: isCollapsed ? '16px' : 'auto' }}>
-                  {noVistas > 9 ? '9+' : noVistas}
+                <span className={`font-bold flex items-center justify-center bg-blue-500 text-white shadow-sm ${
+                  isCollapsed ? 'absolute top-1.5 right-1.5 w-2 h-2 rounded-full' : 'px-2 py-0.5 rounded-full text-[10px]'
+                }`}>
+                  {!isCollapsed && (noVistas > 9 ? '9+' : noVistas)}
                 </span>
               )}
             </button>
 
             {/* Usuario */}
             {!isCollapsed ? (
-              <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg mt-0.5"
-                style={{ backgroundColor: '#141414' }}>
-                <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold"
-                  style={{ backgroundColor: '#1E3A8A', color: '#93C5FD' }}>
+              <div className="flex items-center gap-3 px-3 py-3 rounded-xl mt-1 bg-white/[0.03] border border-white/5">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/20">
                   {iniciales}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium truncate" style={{ color: '#CCC' }}>{email}</p>
-                  <p className="text-xs truncate" style={{ color: '#444' }}>{ROLE_LABEL[role] || role}</p>
+                  <p className="text-[13px] font-medium text-zinc-200 truncate">{email}</p>
+                  <p className="text-[11px] text-zinc-500 truncate mt-0.5">{ROLE_LABEL[role] || role}</p>
                 </div>
                 <button onClick={onLogout} title="Cerrar sesión"
-                  className="shrink-0 transition-colors p-1"
-                  style={{ color: '#444' }}
-                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#EF4444'}
-                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#444'}>
-                  <LogOut size={14} />
+                  className="shrink-0 p-1.5 rounded-md text-zinc-500 hover:bg-red-500/10 hover:text-red-400 transition-colors">
+                  <LogOut size={16} />
                 </button>
               </div>
             ) : (
               <button onClick={onLogout} title="Cerrar sesión"
-                className="w-full flex items-center justify-center rounded-lg py-2.5 transition-all duration-150 mt-0.5"
-                style={{ color: '#444' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = '#141414'; (e.currentTarget as HTMLElement).style.color = '#EF4444'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#444'; }}>
-                <LogOut size={15} />
+                className="w-full flex items-center justify-center rounded-xl p-2.5 mt-1 text-zinc-500 hover:bg-red-500/10 hover:text-red-400 transition-colors">
+                <LogOut size={18} />
               </button>
             )}
           </div>
@@ -282,31 +253,38 @@ export function Sidebar({
 
       {/* ── Panel de notificaciones (slide desde derecha) ── */}
       {notifOpen && (
-        <div className="fixed inset-0 z-50 flex">
-          <div className="flex-1" onClick={() => setNotifOpen(false)} />
-          <div className="w-80 h-full flex flex-col shadow-2xl animate-slide-in"
-            style={{ backgroundColor: '#FFFFFF', borderLeft: '1px solid #E5E5E5' }}>
-            <div className="flex justify-between items-center px-5 py-4"
-              style={{ borderBottom: '1px solid #F0F0F0' }}>
+        <div className="fixed inset-0 z-[60] flex">
+          <div className="flex-1 bg-black/20 backdrop-blur-sm transition-opacity" onClick={() => setNotifOpen(false)} />
+          <div className="w-[340px] h-full flex flex-col bg-white dark:bg-[#0A0A0A] border-l border-gray-200 dark:border-white/10 shadow-2xl animate-in slide-in-from-right duration-300">
+            <div className="flex justify-between items-center px-6 py-5 border-b border-gray-100 dark:border-white/5">
               <div>
-                <h3 className="font-semibold text-gray-900 text-sm">Notificaciones</h3>
-                {noVistas === 0 && <p className="text-xs text-gray-400 mt-0.5">Todo al día</p>}
+                <h3 className="font-semibold text-gray-900 dark:text-zinc-100 text-sm tracking-wide">Notificaciones</h3>
+                {noVistas === 0 && <p className="text-xs text-gray-500 dark:text-zinc-500 mt-1">Todo al día</p>}
               </div>
               <button onClick={() => setNotifOpen(false)}
-                className="text-gray-400 hover:text-gray-600 transition-colors p-1">
-                <X size={16} />
+                className="text-gray-400 hover:text-gray-600 dark:text-zinc-500 dark:hover:text-zinc-300 transition-colors p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-white/5">
+                <X size={18} />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
+            <div className="flex-1 overflow-y-auto">
               {notifs.length === 0 ? (
-                <div className="text-center py-16 text-gray-400 text-sm">Sin notificaciones</div>
+                <div className="flex flex-col items-center justify-center h-full text-center p-6">
+                  <Bell className="w-8 h-8 text-gray-300 dark:text-zinc-800 mb-3" />
+                  <p className="text-sm text-gray-500 dark:text-zinc-400">Sin notificaciones</p>
+                </div>
               ) : notifs.map(n => (
-                <div key={n.id} className={`px-5 py-4 ${!n.seen ? 'bg-blue-50/40' : ''}`}>
-                  {!n.seen && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mb-2" />}
-                  <p className="text-sm text-gray-700 leading-relaxed">{n.message}</p>
-                  <p className="text-xs text-gray-400 mt-1.5">
-                    {new Date(n.created_at).toLocaleString('es-GT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                  </p>
+                <div key={n.id} className={`px-6 py-4 border-b border-gray-50 dark:border-white/5 transition-colors ${!n.seen ? 'bg-blue-50/50 dark:bg-blue-500/5' : 'hover:bg-gray-50 dark:hover:bg-white/5'}`}>
+                  <div className="flex gap-3">
+                    {!n.seen && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 shrink-0 shadow-[0_0_8px_rgba(59,130,246,0.6)]" />}
+                    <div>
+                      <p className={`text-sm leading-relaxed ${!n.seen ? 'text-gray-900 dark:text-zinc-200 font-medium' : 'text-gray-600 dark:text-zinc-400'}`}>
+                        {n.message}
+                      </p>
+                      <p className="text-[11px] text-gray-400 dark:text-zinc-500 mt-1.5 font-medium">
+                        {new Date(n.created_at).toLocaleString('es-GT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
