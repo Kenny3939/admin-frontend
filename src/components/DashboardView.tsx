@@ -1,8 +1,10 @@
 // src/components/DashboardView.tsx
 import { useEffect, useState } from 'react';
-import { DollarSign, Users, CalendarCheck, TrendingUp, CheckCircle, UserX, Percent, Bell } from 'lucide-react';
-import { obtenerStatsDia, obtenerTotalClientes } from '../services/appointments.service';
+import { DollarSign, CalendarCheck, UserX, Percent, Users, TrendingUp, Bell } from 'lucide-react';
 import { supabase } from '../supabase';
+import { obtenerStatsDia, obtenerTotalClientes } from '../services/appointments.service';
+import { colors, typography, radius, shadow, spacing } from '../theme';
+import { Card, PageHeader, Skeleton } from './Uhih';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 interface Stats {
@@ -15,58 +17,66 @@ interface Stats {
   totalClientes:     number;
 }
 
-// ─── Tarjeta reutilizable ─────────────────────────────────────────────────────
-function StatCard({
-  titulo, valor, subtitulo, icono, gradiente, borde
-}: {
+// ─── Stat Card ────────────────────────────────────────────────────────────────
+function StatCard({ titulo, valor, subtitulo, icono, acento = false }: {
   titulo: string;
   valor: string | number;
   subtitulo: string;
   icono: React.ReactNode;
-  gradiente?: string;
-  borde?: string;
+  acento?: boolean;
 }) {
-  if (gradiente) {
-    return (
-      <div className={`${gradiente} p-6 rounded-2xl shadow-lg text-white`}>
-        <div className="flex justify-between items-start">
-          <div>
-            <p className="text-white/70 text-sm font-medium mb-1">{titulo}</p>
-            <h3 className="text-4xl font-bold">{valor}</h3>
-          </div>
-          <div className="bg-white/20 p-3 rounded-xl">{icono}</div>
-        </div>
-        <p className="text-white/70 text-xs mt-4 flex items-center gap-1">
-          <TrendingUp size={12} /> {subtitulo}
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <div className={`bg-white border ${borde ?? 'border-gray-200'} p-6 rounded-2xl shadow-sm hover:border-opacity-80 transition-colors`}>
-      <div className="flex justify-between items-start">
-        <div>
-          <p className="text-gray-500 text-sm font-medium mb-1">{titulo}</p>
-          <h3 className="text-4xl font-bold text-gray-900">{valor}</h3>
+    <div style={{
+      backgroundColor: acento ? colors.accent : colors.bgCard,
+      border: `1px solid ${acento ? 'transparent' : colors.border}`,
+      borderRadius: radius.xl,
+      boxShadow: acento ? '0 4px 14px rgba(37,99,235,0.25)' : shadow.sm,
+      padding: '20px',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+        <p style={{
+          fontSize: typography.sm, fontWeight: typography.medium,
+          color: acento ? 'rgba(255,255,255,0.7)' : colors.textSecondary,
+          margin: 0,
+        }}>
+          {titulo}
+        </p>
+        <div style={{
+          width: 32, height: 32, borderRadius: radius.md,
+          backgroundColor: acento ? 'rgba(255,255,255,0.15)' : colors.bgSubtle,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: acento ? 'white' : colors.textSecondary,
+          flexShrink: 0,
+        }}>
+          {icono}
         </div>
-        <div className="bg-gray-50 p-3 rounded-xl">{icono}</div>
       </div>
-      <p className="text-gray-400 text-xs mt-4">{subtitulo}</p>
+      <p style={{
+        fontSize: '26px', fontWeight: typography.bold, margin: '0 0 4px',
+        color: acento ? 'white' : colors.textPrimary, lineHeight: 1,
+      }}>
+        {valor}
+      </p>
+      <p style={{
+        fontSize: typography.xs, margin: 0,
+        color: acento ? 'rgba(255,255,255,0.6)' : colors.textMuted,
+        display: 'flex', alignItems: 'center', gap: '4px',
+      }}>
+        <TrendingUp size={11} style={{ flexShrink: 0 }} />
+        {subtitulo}
+      </p>
     </div>
   );
 }
 
-// ─── Componente principal ─────────────────────────────────────────────────────
+// ─── Vista principal ──────────────────────────────────────────────────────────
 export function DashboardView({ negocio }: { negocio: string }) {
-  const [stats, setStats]           = useState<Stats | null>(null);
-  const [cargando, setCargando]     = useState(true);
+  const [stats, setStats]               = useState<Stats | null>(null);
   const [cancelaciones, setCancelaciones] = useState<any[]>([]);
+  const [cargando, setCargando]         = useState(true);
 
   useEffect(() => {
     if (!negocio) return;
-    setCargando(true);
-
     async function fetchStats() {
       try {
         const [dia, totalClientes, { data: nots }] = await Promise.all([
@@ -77,24 +87,21 @@ export function DashboardView({ negocio }: { negocio: string }) {
         ]);
         setStats({ ...dia, totalClientes });
         setCancelaciones(nots || []);
-      } catch (error) {
-        console.error('Error cargando estadísticas:', error);
+      } catch (e) {
+        console.error('Error cargando stats:', e);
       } finally {
         setCargando(false);
       }
     }
-
     fetchStats();
   }, [negocio]);
 
   if (cargando) {
     return (
-      <div className="space-y-6">
-        <h2 className="text-xl font-semibold text-gray-800">Resumen de Hoy</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="animate-pulse h-36 bg-gray-100 rounded-2xl" />
-          ))}
+      <div>
+        <PageHeader title="Dashboard" subtitle="Resumen de hoy" icon={<LayoutDashboardIcon />} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: spacing.lg, marginBottom: spacing.lg }}>
+          {[...Array(6)].map((_, i) => <Skeleton key={i} height="100px" borderRadius={radius.xl} />)}
         </div>
       </div>
     );
@@ -102,100 +109,108 @@ export function DashboardView({ negocio }: { negocio: string }) {
 
   if (!stats) return null;
 
-  const tasaTexto = stats.tasaAsistencia !== null
-    ? `${stats.tasaAsistencia}%`
-    : '—';
+  const tasaTexto = stats.tasaAsistencia !== null ? `${stats.tasaAsistencia}%` : '—';
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-gray-800">Resumen de Hoy</h2>
+    <div>
+      <PageHeader
+        title="Dashboard"
+        subtitle={`Resumen de hoy · ${new Date().toLocaleDateString('es-GT', { weekday: 'long', day: 'numeric', month: 'long' })}`}
+        icon={<CalendarCheck size={18} />}
+      />
 
-      {/* ── Fila 1: Ingresos ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
+      {/* ── Fila 1: Ingresos (destacados) ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: spacing.lg, marginBottom: spacing.lg }}>
         <StatCard
+          acento
           titulo="Ingresos Proyectados"
           valor={`Q${stats.ingresoProyectado.toFixed(2)}`}
-          subtitulo={`${stats.citasProgramadas} cita${stats.citasProgramadas !== 1 ? 's' : ''} por atender hoy`}
-          gradiente="bg-gradient-to-br from-indigo-500 to-indigo-700"
-          icono={<DollarSign size={24} className="text-white" />}
+          subtitulo={`${stats.citasProgramadas} cita${stats.citasProgramadas !== 1 ? 's' : ''} por atender`}
+          icono={<DollarSign size={16} />}
         />
-
         <StatCard
-          titulo="Ingresos Reales (Cobrados)"
+          titulo="Ingresos Reales"
           valor={`Q${stats.ingresoReal.toFixed(2)}`}
-          subtitulo={`${stats.citasCompletadas} cita${stats.citasCompletadas !== 1 ? 's' : ''} finalizadas hoy`}
-          gradiente="bg-gradient-to-br from-emerald-500 to-emerald-700"
-          icono={<CheckCircle size={24} className="text-white" />}
+          subtitulo={`${stats.citasCompletadas} cita${stats.citasCompletadas !== 1 ? 's' : ''} finalizadas`}
+          icono={<DollarSign size={16} />}
         />
       </div>
 
-      {/* ── Fila 2: Asistencia y clientes ── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-
+      {/* ── Fila 2: Métricas ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: spacing.lg, marginBottom: spacing.lg }}>
         <StatCard
           titulo="Citas Programadas"
           valor={stats.citasProgramadas}
-          subtitulo="Pendientes de atender hoy"
-          borde="border-indigo-200"
-          icono={<CalendarCheck size={24} className="text-indigo-600" />}
+          subtitulo="Pendientes hoy"
+          icono={<CalendarCheck size={16} />}
         />
-
         <StatCard
           titulo="No Asistieron"
           valor={stats.citasNoShow}
-          subtitulo="Clientes que no se presentaron"
-          borde="border-orange-200"
-          icono={<UserX size={24} className="text-orange-500" />}
+          subtitulo="Sin presentarse"
+          icono={<UserX size={16} />}
         />
-
         <StatCard
           titulo="Tasa de Asistencia"
           valor={tasaTexto}
-          subtitulo={
-            stats.tasaAsistencia !== null
-              ? 'De las citas cerradas (completadas + no-show)'
-              : 'Sin datos cerrados aún hoy'
-          }
-          borde="border-purple-200"
-          icono={<Percent size={24} className="text-purple-600" />}
+          subtitulo={stats.tasaAsistencia !== null ? 'De citas cerradas' : 'Sin datos aún'}
+          icono={<Percent size={16} />}
         />
-      </div>
-
-      {/* ── Fila 3: CRM ── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatCard
-          titulo="Total en Base de Datos"
+          titulo="Total Clientes"
           valor={stats.totalClientes}
-          subtitulo="Clientes registrados históricamente"
-          borde="border-blue-200"
-          icono={<Users size={24} className="text-blue-600" />}
+          subtitulo="En base de datos"
+          icono={<Users size={16} />}
         />
       </div>
 
       {/* ── Cancelaciones recientes ── */}
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100 bg-red-50">
-          <Bell size={16} className="text-red-500" />
-          <h3 className="font-bold text-gray-800 text-sm">Cancelaciones Recientes por WhatsApp</h3>
+      <Card padding="none">
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '8px',
+          padding: '14px 20px',
+          borderBottom: `1px solid ${colors.border}`,
+        }}>
+          <Bell size={15} style={{ color: colors.danger }} />
+          <p style={{ margin: 0, fontWeight: typography.semibold, fontSize: typography.sm, color: colors.textPrimary }}>
+            Cancelaciones recientes vía WhatsApp
+          </p>
         </div>
+
         {cancelaciones.length === 0 ? (
-          <div className="text-center py-8 text-gray-400 text-sm">
-            No hay cancelaciones recientes. ✅
+          <div style={{ padding: '32px', textAlign: 'center', color: colors.textMuted, fontSize: typography.sm }}>
+            ✅ Sin cancelaciones recientes
           </div>
         ) : (
-          <div className="divide-y divide-gray-50">
-            {cancelaciones.map(n => (
-              <div key={n.id} className={`flex justify-between items-start px-5 py-3.5 ${n.seen ? '' : 'bg-red-50/40'}`}>
-                <p className="text-sm text-gray-700">{n.message}</p>
-                <span className="text-xs text-gray-400 whitespace-nowrap ml-4">
-                  {new Date(n.created_at).toLocaleString('es-GT', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}
+          <div>
+            {cancelaciones.map((n, i) => (
+              <div key={n.id} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+                padding: '14px 20px',
+                borderBottom: i < cancelaciones.length - 1 ? `1px solid ${colors.border}` : 'none',
+                backgroundColor: !n.seen ? '#FEF2F2' : 'transparent',
+              }}>
+                <p style={{ margin: 0, fontSize: typography.sm, color: colors.textSecondary, flex: 1 }}>
+                  {n.message}
+                </p>
+                <span style={{ fontSize: typography.xs, color: colors.textMuted, whiteSpace: 'nowrap', marginLeft: '16px' }}>
+                  {new Date(n.created_at).toLocaleString('es-GT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
             ))}
           </div>
         )}
-      </div>
+      </Card>
     </div>
+  );
+}
+
+// Pequeño helper para el ícono del header
+function LayoutDashboardIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
+      <rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
+    </svg>
   );
 }
