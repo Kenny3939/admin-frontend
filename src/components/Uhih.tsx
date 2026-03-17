@@ -1,45 +1,37 @@
-// src/components/ui.tsx
-// ─── Componentes base del sistema de diseño ───────────────────────────────────
-// Importa de aquí en lugar de crear estilos inline en cada vista.
-
+// src/components/Uhih.tsx
 import { useState, createContext, useContext, useCallback } from 'react';
 import { X, CheckCircle, AlertTriangle, Info, XCircle } from 'lucide-react';
-import { colors, radius, shadow, typography } from '../theme';
+
+// ─── Utilidad para combinar clases limpiamente ────────────────────────────────
+export function cn(...classes: (string | undefined | null | false)[]) {
+  return classes.filter(Boolean).join(' ');
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
-// CARD
+// CARD (Tarjetas estilo Mercury)
 // ══════════════════════════════════════════════════════════════════════════════
-interface CardProps {
-  children: React.ReactNode;
-  className?: string;
-  padding?: 'sm' | 'md' | 'lg' | 'none';
-  onClick?: () => void;
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  padding?: 'none' | 'sm' | 'md' | 'lg';
   hoverable?: boolean;
 }
 
-export function Card({ children, className = '', padding = 'lg', onClick, hoverable }: CardProps) {
-  const pad = { none: '0', sm: '12px', md: '16px', lg: '20px' }[padding];
+export function Card({ children, className, padding = 'lg', hoverable, ...props }: CardProps) {
+  const paddingClasses = {
+    none: 'p-0',
+    sm: 'p-4',
+    md: 'p-6',
+    lg: 'p-8', // Aumentamos el padding base para más "aire" premium
+  };
+
   return (
     <div
-      onClick={onClick}
-      className={className}
-      style={{
-        backgroundColor: colors.bgCard,
-        border: `1px solid ${colors.border}`,
-        borderRadius: radius.xl,
-        boxShadow: shadow.sm,
-        padding: pad,
-        cursor: onClick ? 'pointer' : 'default',
-        transition: hoverable ? 'box-shadow 0.15s, border-color 0.15s' : undefined,
-      }}
-      onMouseEnter={hoverable && onClick ? e => {
-        (e.currentTarget as HTMLElement).style.boxShadow = shadow.md;
-        (e.currentTarget as HTMLElement).style.borderColor = colors.borderStrong;
-      } : undefined}
-      onMouseLeave={hoverable && onClick ? e => {
-        (e.currentTarget as HTMLElement).style.boxShadow = shadow.sm;
-        (e.currentTarget as HTMLElement).style.borderColor = colors.border;
-      } : undefined}
+      className={cn(
+        "bg-white dark:bg-[#0A0A0A] rounded-2xl ring-1 ring-gray-200 dark:ring-gray-800 shadow-sm",
+        paddingClasses[padding],
+        hoverable && "transition-all duration-300 hover:shadow-md hover:ring-gray-300 dark:hover:ring-gray-700 cursor-pointer",
+        className
+      )}
+      {...props}
     >
       {children}
     </div>
@@ -47,77 +39,40 @@ export function Card({ children, className = '', padding = 'lg', onClick, hovera
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// BUTTON
+// BUTTON (Con micro-interacciones)
 // ══════════════════════════════════════════════════════════════════════════════
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
-type ButtonSize    = 'sm' | 'md' | 'lg';
+type ButtonSize = 'sm' | 'md' | 'lg';
 
-interface ButtonProps {
-  children: React.ReactNode;
-  onClick?: () => void;
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
-  disabled?: boolean;
   loading?: boolean;
   icon?: React.ReactNode;
   fullWidth?: boolean;
-  type?: 'button' | 'submit';
 }
 
 export function Button({
-  children, onClick, variant = 'primary', size = 'md',
-  disabled, loading, icon, fullWidth, type = 'button',
+  children, variant = 'primary', size = 'md', loading, icon, fullWidth, className, disabled, ...props
 }: ButtonProps) {
-  const styles: Record<ButtonVariant, React.CSSProperties> = {
-    primary:   { backgroundColor: colors.accent,     color: '#fff',              border: 'none' },
-    secondary: { backgroundColor: colors.bgSubtle,   color: colors.textPrimary,  border: `1px solid ${colors.border}` },
-    ghost:     { backgroundColor: 'transparent',      color: colors.textSecondary, border: 'none' },
-    danger:    { backgroundColor: colors.dangerLight, color: colors.danger,       border: `1px solid #FECACA` },
+  const baseStyles = "inline-flex items-center justify-center font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 whitespace-nowrap active:scale-[0.98]";
+  
+  const variants: Record<ButtonVariant, string> = {
+    primary: "bg-gray-900 text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100 shadow-sm", // Estilo Linear (blanco/negro puro)
+    secondary: "bg-white text-gray-900 ring-1 ring-inset ring-gray-200 hover:bg-gray-50 dark:bg-[#121212] dark:text-gray-100 dark:ring-gray-800 dark:hover:bg-[#1A1A1A]",
+    ghost: "hover:bg-gray-100 dark:hover:bg-[#1A1A1A] text-gray-700 dark:text-gray-300",
+    danger: "bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-400 ring-1 ring-inset ring-red-200 dark:ring-red-900/50",
   };
 
-  const hoverStyles: Record<ButtonVariant, React.CSSProperties> = {
-    primary:   { backgroundColor: colors.accentHover },
-    secondary: { backgroundColor: colors.bgMuted },
-    ghost:     { backgroundColor: colors.bgSubtle, color: colors.textPrimary },
-    danger:    { backgroundColor: '#FEE2E2' },
+  const sizes: Record<ButtonSize, string> = {
+    sm: "h-8 px-3 text-xs rounded-md gap-1.5",
+    md: "h-10 px-4 py-2 text-sm rounded-lg gap-2",
+    lg: "h-12 px-6 text-base rounded-xl gap-2",
   };
-
-  const sizes: Record<ButtonSize, React.CSSProperties> = {
-    sm: { padding: '6px 12px', fontSize: typography.sm, borderRadius: radius.md },
-    md: { padding: '8px 16px', fontSize: typography.base, borderRadius: radius.lg },
-    lg: { padding: '11px 20px', fontSize: typography.md, borderRadius: radius.lg },
-  };
-
-  const [hovered, setHovered] = useState(false);
 
   return (
-    <button
-      type={type}
-      onClick={onClick}
-      disabled={disabled || loading}
-      style={{
-        ...styles[variant],
-        ...(hovered && !disabled && !loading ? hoverStyles[variant] : {}),
-        ...sizes[size],
-        fontFamily: typography.fontFamily,
-        fontWeight: typography.semibold,
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '6px',
-        width: fullWidth ? '100%' : undefined,
-        cursor: disabled || loading ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.5 : 1,
-        transition: 'all 0.15s',
-        outline: 'none',
-        whiteSpace: 'nowrap',
-      }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      {loading ? (
-        <span style={{ width: 14, height: 14, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.6s linear infinite' }} />
-      ) : icon}
+    <button className={cn(baseStyles, variants[variant], sizes[size], fullWidth && "w-full", className)} disabled={disabled || loading} {...props}>
+      {loading ? <span className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin" /> : icon}
       {children}
     </button>
   );
@@ -126,23 +81,24 @@ export function Button({
 // ══════════════════════════════════════════════════════════════════════════════
 // BADGE
 // ══════════════════════════════════════════════════════════════════════════════
-interface BadgeProps {
-  children: React.ReactNode;
-  bg: string;
-  text: string;
-  dot?: string;
+interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
+  variant?: 'default' | 'success' | 'warning' | 'danger' | 'info' | 'purple';
+  dot?: boolean;
 }
 
-export function Badge({ children, bg, text, dot }: BadgeProps) {
+export function Badge({ children, variant = 'default', dot, className, ...props }: BadgeProps) {
+  const variants = {
+    default: "bg-gray-100 text-gray-700 dark:bg-gray-800/50 dark:text-gray-300 ring-gray-200 dark:ring-gray-700",
+    success: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 ring-emerald-200 dark:ring-emerald-500/20",
+    warning: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400 ring-amber-200 dark:ring-amber-500/20",
+    danger: "bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400 ring-red-200 dark:ring-red-500/20",
+    info: "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400 ring-blue-200 dark:ring-blue-500/20",
+    purple: "bg-purple-50 text-purple-700 dark:bg-purple-500/10 dark:text-purple-400 ring-purple-200 dark:ring-purple-500/20",
+  };
+
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: '5px',
-      backgroundColor: bg, color: text,
-      padding: '3px 8px', borderRadius: radius.full,
-      fontSize: typography.xs, fontWeight: typography.semibold,
-      whiteSpace: 'nowrap',
-    }}>
-      {dot && <span style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: dot, flexShrink: 0 }} />}
+    <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-wide uppercase ring-1 ring-inset gap-1.5", variants[variant], className)} {...props}>
+      {dot && <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />}
       {children}
     </span>
   );
@@ -160,125 +116,17 @@ interface EmptyStateProps {
 
 export function EmptyState({ icon, title, description, action }: EmptyStateProps) {
   return (
-    <div style={{
-      display: 'flex', flexDirection: 'column', alignItems: 'center',
-      justifyContent: 'center', padding: '48px 24px', textAlign: 'center',
-      border: `2px dashed ${colors.border}`, borderRadius: radius.xl,
-      backgroundColor: colors.bgSubtle,
-    }}>
-      {icon && (
-        <div style={{ color: colors.textDisabled, marginBottom: '12px', fontSize: '32px' }}>
-          {icon}
-        </div>
-      )}
-      <p style={{ fontWeight: typography.semibold, color: colors.textPrimary, fontSize: typography.base, margin: 0 }}>
-        {title}
-      </p>
-      {description && (
-        <p style={{ color: colors.textMuted, fontSize: typography.sm, marginTop: '4px', maxWidth: '280px' }}>
-          {description}
-        </p>
-      )}
-      {action && <div style={{ marginTop: '16px' }}>{action}</div>}
+    <div className="flex flex-col items-center justify-center py-16 px-6 text-center rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-[#0A0A0A]/50">
+      {icon && <div className="text-gray-400 dark:text-gray-600 mb-4">{icon}</div>}
+      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
+      {description && <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-sm">{description}</p>}
+      {action && <div className="mt-6">{action}</div>}
     </div>
   );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// PAGE HEADER
-// ══════════════════════════════════════════════════════════════════════════════
-interface PageHeaderProps {
-  title: string;
-  subtitle?: string;
-  icon?: React.ReactNode;
-  action?: React.ReactNode;
-}
-
-export function PageHeader({ title, subtitle, icon, action }: PageHeaderProps) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        {icon && (
-          <div style={{
-            width: 36, height: 36, borderRadius: radius.lg,
-            backgroundColor: colors.accentLight,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: colors.accent, flexShrink: 0,
-          }}>
-            {icon}
-          </div>
-        )}
-        <div>
-          <h1 style={{ margin: 0, fontSize: typography.xl, fontWeight: typography.bold, color: colors.textPrimary, lineHeight: 1.2 }}>
-            {title}
-          </h1>
-          {subtitle && (
-            <p style={{ margin: '2px 0 0', fontSize: typography.sm, color: colors.textMuted }}>
-              {subtitle}
-            </p>
-          )}
-        </div>
-      </div>
-      {action && <div>{action}</div>}
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// TABS
-// ══════════════════════════════════════════════════════════════════════════════
-interface TabsProps {
-  tabs: { id: string; label: string; count?: number }[];
-  active: string;
-  onChange: (id: string) => void;
-}
-
-export function Tabs({ tabs, active, onChange }: TabsProps) {
-  return (
-    <div style={{
-      display: 'inline-flex', gap: '2px',
-      backgroundColor: colors.bgSubtle,
-      padding: '3px', borderRadius: radius.lg,
-      border: `1px solid ${colors.border}`,
-    }}>
-      {tabs.map(tab => (
-        <button
-          key={tab.id}
-          onClick={() => onChange(tab.id)}
-          style={{
-            padding: '6px 14px',
-            borderRadius: radius.md,
-            fontSize: typography.sm,
-            fontWeight: typography.semibold,
-            fontFamily: typography.fontFamily,
-            border: 'none',
-            cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: '6px',
-            backgroundColor: active === tab.id ? colors.bgCard : 'transparent',
-            color: active === tab.id ? colors.textPrimary : colors.textMuted,
-            boxShadow: active === tab.id ? shadow.sm : 'none',
-            transition: 'all 0.15s',
-          }}
-        >
-          {tab.label}
-          {tab.count !== undefined && tab.count > 0 && (
-            <span style={{
-              backgroundColor: active === tab.id ? colors.accentLight : colors.bgMuted,
-              color: active === tab.id ? colors.accent : colors.textMuted,
-              fontSize: '11px', fontWeight: typography.bold,
-              padding: '1px 6px', borderRadius: radius.full,
-            }}>
-              {tab.count}
-            </span>
-          )}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// TOAST SYSTEM
+// TOAST SYSTEM (Efecto Glassmorphism)
 // ══════════════════════════════════════════════════════════════════════════════
 type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -299,17 +147,10 @@ export function useToast() {
 }
 
 const TOAST_ICONS: Record<ToastType, React.ReactNode> = {
-  success: <CheckCircle size={15} />,
-  error:   <XCircle size={15} />,
-  warning: <AlertTriangle size={15} />,
-  info:    <Info size={15} />,
-};
-
-const TOAST_COLORS: Record<ToastType, { bg: string; text: string; border: string; icon: string }> = {
-  success: { bg: colors.successLight, text: colors.success,  border: '#BBF7D0', icon: colors.success },
-  error:   { bg: colors.dangerLight,  text: colors.danger,   border: '#FECACA', icon: colors.danger },
-  warning: { bg: colors.warningLight, text: colors.warning,  border: '#FDE68A', icon: colors.warning },
-  info:    { bg: colors.infoLight,    text: colors.info,     border: '#BAE6FD', icon: colors.info },
+  success: <CheckCircle className="w-4 h-4 text-emerald-500" />,
+  error: <XCircle className="w-4 h-4 text-red-500" />,
+  warning: <AlertTriangle className="w-4 h-4 text-amber-500" />,
+  info: <Info className="w-4 h-4 text-blue-500" />,
 };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
@@ -321,69 +162,27 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
   }, []);
 
-  function dismiss(id: string) {
-    setToasts(prev => prev.filter(t => t.id !== id));
-  }
-
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
-      {/* Toast container */}
-      <div style={{
-        position: 'fixed', bottom: '24px', right: '24px',
-        display: 'flex', flexDirection: 'column', gap: '8px',
-        zIndex: 9999, maxWidth: '360px',
-      }}>
-        {toasts.map(t => {
-          const c = TOAST_COLORS[t.type];
-          return (
-            <div key={t.id} style={{
-              display: 'flex', alignItems: 'flex-start', gap: '10px',
-              backgroundColor: c.bg, border: `1px solid ${c.border}`,
-              borderRadius: radius.lg, padding: '12px 14px',
-              boxShadow: shadow.lg, color: c.text,
-              fontSize: typography.sm, fontWeight: typography.medium,
-              fontFamily: typography.fontFamily,
-              animation: 'slideInRight 0.2s ease',
-            }}>
-              <span style={{ color: c.icon, flexShrink: 0, marginTop: '1px' }}>{TOAST_ICONS[t.type]}</span>
-              <span style={{ flex: 1 }}>{t.message}</span>
-              <button onClick={() => dismiss(t.id)} style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: c.text, opacity: 0.6, padding: '0', flexShrink: 0,
-                lineHeight: 1,
-              }}>
-                <X size={14} />
-              </button>
-            </div>
-          );
-        })}
+      <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 w-full max-w-sm pointer-events-none">
+        {toasts.map(t => (
+          <div key={t.id} className="pointer-events-auto flex items-start gap-3 p-4 rounded-xl shadow-lg ring-1 ring-black/5 dark:ring-white/10 bg-white/80 dark:bg-[#0A0A0A]/80 backdrop-blur-md animate-in slide-in-from-right-8 fade-in duration-300">
+            <span className="shrink-0 mt-0.5">{TOAST_ICONS[t.type]}</span>
+            <p className="flex-1 text-sm font-medium text-gray-900 dark:text-gray-100">{t.message}</p>
+            <button onClick={() => setToasts(prev => prev.filter(toast => toast.id !== t.id))} className="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
       </div>
-
-      <style>{`
-        @keyframes slideInRight {
-          from { transform: translateX(20px); opacity: 0; }
-          to   { transform: translateX(0);    opacity: 1; }
-        }
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </ToastContext.Provider>
   );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// SKELETON (loading placeholder)
+// SKELETON
 // ══════════════════════════════════════════════════════════════════════════════
-export function Skeleton({ width = '100%', height = '16px', borderRadius = radius.md }: {
-  width?: string; height?: string; borderRadius?: string;
-}) {
-  return (
-    <div style={{
-      width, height, borderRadius,
-      backgroundColor: colors.bgMuted,
-      animation: 'pulse 1.5s ease-in-out infinite',
-    }} />
-  );
+export function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("animate-pulse rounded-md bg-gray-200 dark:bg-gray-800", className)} {...props} />;
 }

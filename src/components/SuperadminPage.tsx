@@ -3,10 +3,9 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../supabase';
 import { logout } from '../services/auth.service';
 import { CHANGELOG, VERSION_ACTUAL } from '../changelog';
-import {
-  Building2, Users, Wifi, WifiOff, Plus, X, Save,
-  LogOut, ShieldCheck, RefreshCw, GitBranch, Wrench, Sparkles, Bug
-} from 'lucide-react';
+import { Building2, Users, Wifi, WifiOff, Plus, X, Save, LogOut, ShieldCheck, RefreshCw, GitBranch, Wrench, Sparkles, Bug, Sun, Moon } from 'lucide-react';
+import { colors, typography, radius, shadow, spacing } from '../theme';
+import { useTheme } from './Topbar';
 
 interface Negocio {
   id: string;
@@ -15,295 +14,218 @@ interface Negocio {
   status: string;
   plan: string;
   created_at: string;
-  // usuarios enlazados
   users?: { email: string; role: string }[];
 }
 
-interface SuperadminPageProps {
-  onLogout: () => void;
-}
+const inputStyle: React.CSSProperties = {
+  width: '100%', padding: '9px 12px', borderRadius: radius.lg,
+  border: `1px solid ${colors.border}`, backgroundColor: colors.bgSubtle,
+  color: colors.textPrimary, fontSize: typography.sm,
+  fontFamily: typography.fontFamily, outline: 'none', boxSizing: 'border-box',
+};
 
-export function SuperadminPage({ onLogout }: SuperadminPageProps) {
-  const [tab, setTab]                       = useState<'negocios' | 'changelog'>('negocios');
-  const [negocios, setNegocios]             = useState<Negocio[]>([]);
+export function SuperadminPage({ onLogout }: { onLogout: () => void }) {
+  const [negocios, setNegocios]         = useState<Negocio[]>([]);
   const [cargando, setCargando]         = useState(true);
-  const [mostrarModal, setMostrarModal] = useState(false);
+  const [tab, setTab]                   = useState<'negocios' | 'changelog'>('negocios');
+  const [modalOpen, setModalOpen]       = useState(false);
   const [guardando, setGuardando]       = useState(false);
+  const { theme, toggleTheme }          = useTheme();
 
-  // Form nuevo negocio
   const [nombre, setNombre]       = useState('');
   const [whatsapp, setWhatsapp]   = useState('');
   const [plan, setPlan]           = useState('basic');
-  const [emailAdmin, setEmailAdmin]     = useState('');
-  const [passAdmin, setPassAdmin]       = useState('');
+  const [emailAdmin, setEmailAdmin] = useState('');
+  const [passAdmin, setPassAdmin]   = useState('');
   const [openTime, setOpenTime]   = useState('09:00');
   const [closeTime, setCloseTime] = useState('18:00');
   const [capacity, setCapacity]   = useState(1);
 
-  async function cargarNegocios() {
+  useEffect(() => { cargar(); }, []);
+
+  async function cargar() {
     setCargando(true);
-    const { data } = await supabase
-      .from('businesses')
-      .select('*, users(email, role)')
-      .order('created_at', { ascending: false });
+    const { data } = await supabase.from('businesses').select('*, users(email, role)').order('created_at', { ascending: false });
     setNegocios(data || []);
     setCargando(false);
   }
 
-  useEffect(() => { cargarNegocios(); }, []);
-
   async function crearNegocio(e: React.FormEvent) {
     e.preventDefault();
     setGuardando(true);
-
     try {
-      // 1. Crear negocio
-      const { data: negocio, error: errNeg } = await supabase
-        .from('businesses')
-        .insert([{
-          name: nombre,
-          whatsapp_number: whatsapp,
-          plan,
-          status: 'active',
-          open_time: openTime,
-          close_time: closeTime,
-          capacity,
-        }])
-        .select()
-        .single();
-
+      const { data: negocio, error: errNeg } = await supabase.from('businesses')
+        .insert([{ name: nombre, whatsapp_number: whatsapp, plan, status: 'active', open_time: openTime, close_time: closeTime, capacity }])
+        .select().single();
       if (errNeg) throw errNeg;
 
-      // 2. Crear usuario en Supabase Auth
-      const { data: authData, error: errAuth } = await supabase.auth.admin.createUser({
-        email: emailAdmin,
-        password: passAdmin,
-        email_confirm: true,
-      });
-
+      const { data: authData, error: errAuth } = await supabase.auth.admin.createUser({ email: emailAdmin, password: passAdmin, email_confirm: true });
       if (errAuth) throw errAuth;
 
-      // 3. Crear perfil en tabla users
-      const { error: errUser } = await supabase
-        .from('users')
-        .insert([{
-          auth_id: authData.user.id,
-          business_id: negocio.id,
-          email: emailAdmin,
-          role: 'admin',
-        }]);
-
+      const { error: errUser } = await supabase.from('users').insert([{ auth_id: authData.user.id, business_id: negocio.id, email: emailAdmin, role: 'admin' }]);
       if (errUser) throw errUser;
 
-      alert(`✅ Negocio "${nombre}" creado. Credenciales enviadas a ${emailAdmin}`);
-      setMostrarModal(false);
+      setModalOpen(false);
       setNombre(''); setWhatsapp(''); setEmailAdmin(''); setPassAdmin('');
-      cargarNegocios();
-
-    } catch (error: any) {
-      alert('Error: ' + error.message);
+      cargar();
+    } catch (err: any) {
+      alert('Error: ' + err.message);
     } finally {
       setGuardando(false);
     }
   }
 
-  async function toggleEstado(negocioId: string, estadoActual: string) {
-    const nuevoEstado = estadoActual === 'active' ? 'inactive' : 'active';
-    await supabase.from('businesses').update({ status: nuevoEstado }).eq('id', negocioId);
-    cargarNegocios();
+  async function toggleEstado(id: string, actual: string) {
+    const nuevo = actual === 'active' ? 'inactive' : 'active';
+    await supabase.from('businesses').update({ status: nuevo }).eq('id', id);
+    cargar();
   }
 
-  async function handleLogout() {
-    await logout();
-    onLogout();
-  }
+  async function handleLogout() { await logout(); onLogout(); }
+
+  const activos = negocios.filter(n => n.status === 'active').length;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div style={{ minHeight: '100vh', backgroundColor: 'var(--bg-page)', fontFamily: typography.fontFamily }}>
 
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-        <div className="flex items-center gap-3">
-          <div className="bg-indigo-600 p-2 rounded-lg">
-            <ShieldCheck size={20} className="text-white" />
+      {/* ── Header ── */}
+      <header style={{ backgroundColor: colors.sidebar, borderBottom: `1px solid ${colors.sidebarBorder}`, padding: '0 32px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 40 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 32, height: 32, backgroundColor: colors.accent, borderRadius: radius.lg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <ShieldCheck size={16} color="white" />
           </div>
           <div>
-            <h1 className="font-bold text-gray-900">Centro de Mando</h1>
-            <p className="text-xs text-gray-500">Superadmin Panel · <span className="text-indigo-500 font-semibold">v{VERSION_ACTUAL}</span></p>
+            <p style={{ margin: 0, fontSize: typography.sm, fontWeight: typography.bold, color: 'white' }}>Centro de Mando</p>
+            <p style={{ margin: 0, fontSize: typography.xs, color: '#555' }}>Superadmin · <span style={{ color: colors.accent }}>v{VERSION_ACTUAL}</span></p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          {/* Tabs */}
-          <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
-            <button onClick={() => setTab('negocios')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${tab === 'negocios' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-              Negocios
-            </button>
-            <button onClick={() => setTab('changelog')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 ${tab === 'changelog' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-              <GitBranch size={12} /> Versiones
-            </button>
-          </div>
-          <button
-            onClick={cargarNegocios}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-            title="Recargar"
-          >
-            <RefreshCw size={18} />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Toggle tema */}
+          <button onClick={toggleTheme}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: radius.md, border: `1px solid #2A2A2A`, backgroundColor: '#1A1A1A', color: '#777', cursor: 'pointer', fontSize: typography.xs, fontWeight: typography.medium, fontFamily: typography.fontFamily }}>
+            {theme === 'light' ? <><Moon size={12} /> Oscuro</> : <><Sun size={12} /> Claro</>}
           </button>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors font-semibold"
-          >
-            <LogOut size={16} /> Salir
+
+          <button onClick={cargar}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#555', padding: 6, borderRadius: radius.md, display: 'flex' }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#999'}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#555'}>
+            <RefreshCw size={16} />
+          </button>
+
+          <button onClick={handleLogout}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: radius.md, border: 'none', backgroundColor: '#1A1A1A', color: '#EF4444', cursor: 'pointer', fontSize: typography.xs, fontWeight: typography.semibold, fontFamily: typography.fontFamily }}>
+            <LogOut size={13} /> Salir
           </button>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-8 space-y-8">
+      <main style={{ maxWidth: 960, margin: '0 auto', padding: '40px 24px' }}>
 
-        {tab === 'negocios' && (<>
-        {/* Stats rápidas */}
-        <div className="grid grid-cols-3 gap-6">
-          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-            <div className="flex items-center gap-3 mb-2">
-              <Building2 size={20} className="text-indigo-600" />
-              <span className="text-sm text-gray-500 font-medium">Total Negocios</span>
+        {/* Stats */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: spacing.lg, marginBottom: spacing.xxl }}>
+          {[
+            { label: 'Total negocios', valor: negocios.length, icono: <Building2 size={18} />, color: colors.accent },
+            { label: 'Activos',        valor: activos,          icono: <Wifi size={18} />,      color: colors.success },
+            { label: 'Con admin',      valor: negocios.filter(n => n.users && n.users.length > 0).length, icono: <Users size={18} />, color: colors.info },
+          ].map((s, i) => (
+            <div key={i} style={{ backgroundColor: colors.bgCard, border: `1px solid ${colors.border}`, borderRadius: radius.xl, padding: '20px', boxShadow: shadow.sm }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                <p style={{ margin: 0, fontSize: typography.xs, fontWeight: typography.semibold, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</p>
+                <span style={{ color: s.color }}>{s.icono}</span>
+              </div>
+              <p style={{ margin: 0, fontSize: typography.xxxl, fontWeight: typography.bold, color: colors.textPrimary, letterSpacing: '-0.02em' }}>{s.valor}</p>
             </div>
-            <span className="text-3xl font-bold text-gray-900">{negocios.length}</span>
-          </div>
-          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-            <div className="flex items-center gap-3 mb-2">
-              <Wifi size={20} className="text-emerald-600" />
-              <span className="text-sm text-gray-500 font-medium">Activos</span>
-            </div>
-            <span className="text-3xl font-bold text-gray-900">
-              {negocios.filter(n => n.status === 'active').length}
-            </span>
-          </div>
-          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-            <div className="flex items-center gap-3 mb-2">
-              <Users size={20} className="text-blue-600" />
-              <span className="text-sm text-gray-500 font-medium">Con Admin</span>
-            </div>
-            <span className="text-3xl font-bold text-gray-900">
-              {negocios.filter(n => n.users && n.users.length > 0).length}
-            </span>
-          </div>
+          ))}
         </div>
 
-        {/* Directorio de negocios */}
-        <div>
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <Building2 size={20} className="text-indigo-600" /> Directorio de Estéticas
-            </h2>
-            <button
-              onClick={() => setMostrarModal(true)}
-              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors"
-            >
-              <Plus size={16} /> Nueva Estética
-            </button>
+        {/* Tabs */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.lg }}>
+          <div style={{ display: 'inline-flex', gap: 2, backgroundColor: colors.bgSubtle, padding: 3, borderRadius: radius.lg, border: `1px solid ${colors.border}` }}>
+            {[{ id: 'negocios', label: 'Negocios' }, { id: 'changelog', label: 'Versiones', icon: <GitBranch size={12} /> }].map(t => {
+              const active = tab === t.id;
+              return (
+                <button key={t.id} onClick={() => setTab(t.id as any)}
+                  style={{ padding: '6px 14px', borderRadius: radius.md, border: 'none', cursor: 'pointer', fontSize: typography.sm, fontWeight: typography.semibold, fontFamily: typography.fontFamily, display: 'inline-flex', alignItems: 'center', gap: 5, backgroundColor: active ? colors.bgCard : 'transparent', color: active ? colors.textPrimary : colors.textMuted, boxShadow: active ? shadow.sm : 'none', transition: 'all 0.15s' }}>
+                  {t.icon}{t.label}
+                </button>
+              );
+            })}
           </div>
 
-          {cargando ? (
-            <div className="space-y-3">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="animate-pulse h-20 bg-gray-100 rounded-xl" />
-              ))}
+          {tab === 'negocios' && (
+            <button onClick={() => setModalOpen(true)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: radius.lg, border: 'none', backgroundColor: colors.accent, color: 'white', cursor: 'pointer', fontSize: typography.sm, fontWeight: typography.semibold, fontFamily: typography.fontFamily, boxShadow: shadow.sm }}>
+              <Plus size={14} /> Nuevo negocio
+            </button>
+          )}
+        </div>
+
+        {/* ── Tab Negocios ── */}
+        {tab === 'negocios' && (
+          cargando ? (
+            [...Array(3)].map((_, i) => <div key={i} style={{ height: 72, borderRadius: radius.xl, backgroundColor: colors.bgMuted, marginBottom: 6, animation: 'pulse 1.5s ease-in-out infinite' }} />)
+          ) : negocios.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '64px', border: `2px dashed ${colors.border}`, borderRadius: radius.xl, color: colors.textMuted }}>
+              No hay negocios registrados.
             </div>
           ) : (
-            <div className="space-y-3">
-              {negocios.map(negocio => (
-                <div key={negocio.id} className="bg-white border border-gray-200 rounded-xl p-5 flex items-center justify-between hover:border-indigo-200 transition-colors">
-                  <div className="flex items-center gap-4">
-                    <div className={`w-3 h-3 rounded-full ${negocio.status === 'active' ? 'bg-emerald-500' : 'bg-gray-300'}`} />
+            <div style={{ backgroundColor: colors.bgCard, border: `1px solid ${colors.border}`, borderRadius: radius.xl, boxShadow: shadow.sm, overflow: 'hidden' }}>
+              {negocios.map((n, i) => (
+                <div key={n.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: i < negocios.length - 1 ? `1px solid ${colors.border}` : 'none' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: n.status === 'active' ? colors.success : colors.textDisabled, flexShrink: 0 }} />
                     <div>
-                      <h3 className="font-bold text-gray-900">{negocio.name}</h3>
-                      <div className="flex items-center gap-4 mt-0.5">
-                        <span className="text-xs text-gray-500">📱 {negocio.whatsapp_number}</span>
-                        {negocio.users?.[0] && (
-                          <span className="text-xs text-gray-500">👤 {negocio.users[0].email}</span>
-                        )}
-                      </div>
+                      <p style={{ margin: '0 0 2px', fontSize: typography.sm, fontWeight: typography.semibold, color: colors.textPrimary }}>{n.name}</p>
+                      <p style={{ margin: 0, fontSize: typography.xs, color: colors.textMuted, display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span>📱 {n.whatsapp_number}</span>
+                        {n.users?.[0] && <span>👤 {n.users[0].email}</span>}
+                      </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                      negocio.plan === 'pro'
-                        ? 'bg-purple-100 text-purple-700'
-                        : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      {negocio.plan}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ padding: '2px 8px', borderRadius: radius.full, fontSize: typography.xs, fontWeight: typography.bold, backgroundColor: n.plan === 'pro' ? '#F3E8FF' : colors.bgSubtle, color: n.plan === 'pro' ? '#7C3AED' : colors.textMuted }}>
+                      {n.plan}
                     </span>
-                    <button
-                      onClick={() => toggleEstado(negocio.id, negocio.status)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                        negocio.status === 'active'
-                          ? 'bg-red-50 text-red-600 hover:bg-red-100'
-                          : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
-                      }`}
-                    >
-                      {negocio.status === 'active'
-                        ? <><WifiOff size={12} /> Desactivar</>
-                        : <><Wifi size={12} /> Activar</>
-                      }
+                    <button onClick={() => toggleEstado(n.id, n.status)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: radius.md, border: 'none', cursor: 'pointer', fontSize: typography.xs, fontWeight: typography.semibold, fontFamily: typography.fontFamily, backgroundColor: n.status === 'active' ? colors.dangerLight : colors.successLight, color: n.status === 'active' ? colors.danger : colors.success, transition: 'all 0.15s' }}>
+                      {n.status === 'active' ? <><WifiOff size={11} /> Desactivar</> : <><Wifi size={11} /> Activar</>}
                     </button>
                   </div>
                 </div>
               ))}
-
-              {negocios.length === 0 && (
-                <div className="text-center py-16 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">
-                  No hay negocios registrados todavía.
-                </div>
-              )}
             </div>
-          )}
-        </div>
-        </>)}
+          )
+        )}
 
+        {/* ── Tab Changelog ── */}
         {tab === 'changelog' && (
-          <div className="space-y-6">
-            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <GitBranch size={20} className="text-indigo-600" /> Historial de Versiones
-            </h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
             {CHANGELOG.map((entry, i) => (
-              <div key={entry.version} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-                {/* Header versión */}
-                <div className={`flex items-center justify-between px-6 py-4 ${i === 0 ? 'bg-indigo-50 border-b border-indigo-100' : 'bg-gray-50 border-b border-gray-100'}`}>
-                  <div className="flex items-center gap-3">
-                    <span className={`font-bold text-lg ${i === 0 ? 'text-indigo-700' : 'text-gray-700'}`}>
-                      v{entry.version}
-                    </span>
-                    {i === 0 && (
-                      <span className="bg-indigo-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                        Actual
-                      </span>
-                    )}
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                      entry.tipo === 'major' ? 'bg-purple-100 text-purple-700' :
-                      entry.tipo === 'minor' ? 'bg-emerald-100 text-emerald-700' :
-                      'bg-gray-100 text-gray-600'
-                    }`}>
+              <div key={entry.version} style={{ backgroundColor: colors.bgCard, border: `1px solid ${i === 0 ? colors.accent : colors.border}`, borderRadius: radius.xl, boxShadow: shadow.sm, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: `1px solid ${colors.border}`, backgroundColor: i === 0 ? colors.accentLight : 'transparent' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: typography.lg, fontWeight: typography.bold, color: i === 0 ? colors.accent : colors.textPrimary, letterSpacing: '-0.02em' }}>v{entry.version}</span>
+                    {i === 0 && <span style={{ padding: '2px 8px', borderRadius: radius.full, fontSize: typography.xs, fontWeight: typography.bold, backgroundColor: colors.accent, color: 'white' }}>Actual</span>}
+                    <span style={{ padding: '2px 8px', borderRadius: radius.full, fontSize: typography.xs, fontWeight: typography.semibold, backgroundColor: entry.tipo === 'major' ? '#F3E8FF' : entry.tipo === 'minor' ? colors.successLight : colors.bgSubtle, color: entry.tipo === 'major' ? '#7C3AED' : entry.tipo === 'minor' ? colors.success : colors.textMuted }}>
                       {entry.tipo === 'major' ? 'Mayor' : entry.tipo === 'minor' ? 'Feature' : 'Fix'}
                     </span>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-gray-800 text-sm">{entry.titulo}</p>
-                    <p className="text-xs text-gray-400">{new Date(entry.fecha).toLocaleDateString('es-GT', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                  <div style={{ textAlign: 'right' }}>
+                    <p style={{ margin: '0 0 1px', fontSize: typography.sm, fontWeight: typography.semibold, color: colors.textPrimary }}>{entry.titulo}</p>
+                    <p style={{ margin: 0, fontSize: typography.xs, color: colors.textMuted }}>
+                      {new Date(entry.fecha).toLocaleDateString('es-GT', { day: '2-digit', month: 'long', year: 'numeric' })}
+                    </p>
                   </div>
                 </div>
-                {/* Lista de cambios */}
-                <div className="px-6 py-4 space-y-2">
-                  {entry.cambios.map((cambio, j) => (
-                    <div key={j} className="flex items-start gap-3 text-sm">
-                      <span className="mt-0.5 shrink-0">
-                        {cambio.tipo === 'feature' ? <Sparkles size={14} className="text-emerald-500" /> :
-                         cambio.tipo === 'fix'     ? <Bug size={14} className="text-orange-500" /> :
-                                                     <Wrench size={14} className="text-blue-500" />}
+                <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {entry.cambios.map((c, j) => (
+                    <div key={j} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: typography.sm }}>
+                      <span style={{ flexShrink: 0, marginTop: 1, color: c.tipo === 'feature' ? colors.success : c.tipo === 'fix' ? colors.warning : colors.info }}>
+                        {c.tipo === 'feature' ? <Sparkles size={13} /> : c.tipo === 'fix' ? <Bug size={13} /> : <Wrench size={13} />}
                       </span>
-                      <span className="text-gray-600">{cambio.descripcion}</span>
+                      <span style={{ color: colors.textSecondary }}>{c.descripcion}</span>
                     </div>
                   ))}
                 </div>
@@ -311,89 +233,79 @@ export function SuperadminPage({ onLogout }: SuperadminPageProps) {
             ))}
           </div>
         )}
-
       </main>
 
-      {/* Modal nueva estética */}
-      {mostrarModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-          <div className="bg-white w-full max-w-lg rounded-2xl shadow-xl overflow-hidden max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-gray-50 sticky top-0">
-              <h3 className="font-bold text-lg text-gray-900">Registrar Nueva Estética</h3>
-              <button onClick={() => setMostrarModal(false)} className="text-gray-400 hover:text-red-500">
-                <X size={20} />
+      {/* ── Modal nuevo negocio ── */}
+      {modalOpen && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
+          <div style={{ backgroundColor: colors.bgCard, borderRadius: radius.xxl, boxShadow: shadow.lg, width: '100%', maxWidth: 500, maxHeight: '90vh', overflow: 'auto', animation: 'fadeIn 0.15s ease' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 22px', borderBottom: `1px solid ${colors.border}`, position: 'sticky', top: 0, backgroundColor: colors.bgCard }}>
+              <p style={{ margin: 0, fontSize: typography.md, fontWeight: typography.bold, color: colors.textPrimary }}>Registrar nuevo negocio</p>
+              <button onClick={() => setModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.textMuted, padding: 4, display: 'flex', borderRadius: radius.md }}>
+                <X size={16} />
               </button>
             </div>
 
-            <form onSubmit={crearNegocio} className="p-6 space-y-4">
-              <p className="text-xs text-gray-500 bg-indigo-50 p-3 rounded-lg">
-                Esto crea el negocio en la base de datos <strong>y</strong> las credenciales de acceso al panel.
+            <form onSubmit={crearNegocio} style={{ padding: '22px' }}>
+              <p style={{ margin: '0 0 20px', fontSize: typography.xs, color: colors.textMuted, backgroundColor: colors.accentLight, padding: '10px 12px', borderRadius: radius.md }}>
+                Esto crea el negocio y las credenciales de acceso al panel admin.
               </p>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Nombre del Negocio</label>
-                  <input type="text" required value={nombre} onChange={e => setNombre(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholder="Ej. Bella Glow Studio" />
+              {[
+                { label: 'Nombre del negocio', val: nombre, set: setNombre, placeholder: 'Bella Glow Studio', type: 'text', colSpan: 2 },
+                { label: 'Número WhatsApp', val: whatsapp, set: setWhatsapp, placeholder: '502XXXXXXXX', type: 'text', colSpan: 1 },
+              ].map(f => (
+                <div key={f.label} style={{ marginBottom: 14, gridColumn: f.colSpan === 2 ? 'span 2' : 'span 1' }}>
+                  <label style={{ display: 'block', fontSize: typography.xs, fontWeight: typography.semibold, color: colors.textSecondary, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{f.label}</label>
+                  <input type={f.type} required value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.placeholder} style={inputStyle} />
                 </div>
+              ))}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Número WhatsApp</label>
-                  <input type="text" required value={whatsapp} onChange={e => setWhatsapp(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholder="502XXXXXXXX" />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Plan</label>
-                  <select value={plan} onChange={e => setPlan(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                  <label style={{ display: 'block', fontSize: typography.xs, fontWeight: typography.semibold, color: colors.textSecondary, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Plan</label>
+                  <select value={plan} onChange={e => setPlan(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
                     <option value="basic">Basic</option>
                     <option value="pro">Pro</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Hora Apertura</label>
-                  <input type="time" required value={openTime} onChange={e => setOpenTime(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+                  <label style={{ display: 'block', fontSize: typography.xs, fontWeight: typography.semibold, color: colors.textSecondary, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Apertura</label>
+                  <input type="time" required value={openTime} onChange={e => setOpenTime(e.target.value)} style={inputStyle} />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Hora Cierre</label>
-                  <input type="time" required value={closeTime} onChange={e => setCloseTime(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Capacidad (empleados)</label>
-                  <input type="number" min={1} required value={capacity} onChange={e => setCapacity(parseInt(e.target.value))}
-                    className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+                  <label style={{ display: 'block', fontSize: typography.xs, fontWeight: typography.semibold, color: colors.textSecondary, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cierre</label>
+                  <input type="time" required value={closeTime} onChange={e => setCloseTime(e.target.value)} style={inputStyle} />
                 </div>
               </div>
 
-              <hr className="border-gray-100" />
-              <p className="text-sm font-semibold text-gray-700">Acceso al Panel Admin</p>
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: 'block', fontSize: typography.xs, fontWeight: typography.semibold, color: colors.textSecondary, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Capacidad (empleados)</label>
+                <input type="number" min={1} required value={capacity} onChange={e => setCapacity(parseInt(e.target.value))} style={inputStyle} />
+              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Email del Admin</label>
-                  <input type="email" required value={emailAdmin} onChange={e => setEmailAdmin(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholder="dueno@negocio.com" />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Contraseña inicial</label>
-                  <input type="text" required value={passAdmin} onChange={e => setPassAdmin(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholder="Mín. 6 caracteres" />
+              <div style={{ borderTop: `1px solid ${colors.border}`, paddingTop: 16, marginBottom: 16 }}>
+                <p style={{ margin: '0 0 12px', fontSize: typography.xs, fontWeight: typography.semibold, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Acceso al panel admin</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: typography.xs, fontWeight: typography.semibold, color: colors.textSecondary, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email</label>
+                    <input type="email" required value={emailAdmin} onChange={e => setEmailAdmin(e.target.value)} placeholder="dueno@negocio.com" style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: typography.xs, fontWeight: typography.semibold, color: colors.textSecondary, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Contraseña</label>
+                    <input type="text" required value={passAdmin} onChange={e => setPassAdmin(e.target.value)} placeholder="Mín. 6 caracteres" style={inputStyle} />
+                  </div>
                 </div>
               </div>
 
-              <div className="pt-2 flex gap-3">
-                <button type="button" onClick={() => setMostrarModal(false)}
-                  className="flex-1 py-3 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-colors text-sm">
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button type="button" onClick={() => setModalOpen(false)}
+                  style={{ flex: 1, padding: '10px', borderRadius: radius.lg, border: `1px solid ${colors.border}`, backgroundColor: colors.bgSubtle, color: colors.textSecondary, cursor: 'pointer', fontSize: typography.sm, fontWeight: typography.semibold, fontFamily: typography.fontFamily }}>
                   Cancelar
                 </button>
                 <button type="submit" disabled={guardando}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3 font-semibold rounded-xl text-white text-sm transition-colors ${guardando ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
-                  <Save size={16} /> {guardando ? 'Creando...' : 'Crear Estética'}
+                  style={{ flex: 1, padding: '10px', borderRadius: radius.lg, border: 'none', backgroundColor: colors.accent, color: 'white', cursor: 'pointer', fontSize: typography.sm, fontWeight: typography.semibold, fontFamily: typography.fontFamily, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <Save size={13} /> {guardando ? 'Creando...' : 'Crear negocio'}
                 </button>
               </div>
             </form>
