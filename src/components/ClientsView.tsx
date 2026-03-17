@@ -1,6 +1,6 @@
 // src/components/ClientsView.tsx
 import { useEffect, useState } from 'react';
-import { User, Phone, Calendar, X, Clock, ChevronRight, Tag, FileText, Save, DollarSign } from 'lucide-react';
+import { Phone, Calendar, X, Clock, ChevronRight, Tag, FileText, Save, DollarSign } from 'lucide-react';
 import { supabase } from '../supabase';
 import { colors, typography, radius, shadow, spacing, clientLabel, appointmentBadge } from '../theme';
 
