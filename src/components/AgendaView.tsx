@@ -1,8 +1,9 @@
 // src/components/AgendaView.tsx
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, User, Plus, CheckCircle, UserX, RefreshCw, X, Save, Bell, FileText, Scissors, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Clock, User, Plus, CheckCircle, UserX, RefreshCw, X, Save, Scissors, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '../supabase';
 import { actualizarEstadoCita } from '../services/appointments.service';
+import { colors, typography, radius, shadow, spacing, appointmentBadge } from '../theme';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 interface Cita {
@@ -30,188 +31,189 @@ interface SeguimientoForm {
 type TabPrincipal = 'programadas' | 'historial';
 type TabVista    = 'diaria' | 'semanal' | 'mensual';
 
-const BADGE: Record<string, { label: string; clase: string }> = {
-  scheduled: { label: 'Programada',  clase: 'bg-indigo-100 text-indigo-700' },
-  completed: { label: 'Completada',  clase: 'bg-emerald-100 text-emerald-700' },
-  'no-show': { label: 'No asistió',  clase: 'bg-orange-100 text-orange-600' },
-  cancelled: { label: 'Cancelada',   clase: 'bg-red-100 text-red-600' },
-};
-
 const DIAS_ES  = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
+const STATUS_LABEL: Record<string, string> = {
+  scheduled: 'Programada',
+  completed: 'Completada',
+  'no-show': 'No asistió',
+  cancelled: 'Cancelada',
+};
+
 function isSameDay(a: Date, b: Date) {
-  return a.getFullYear() === b.getFullYear() &&
-         a.getMonth()    === b.getMonth()    &&
-         a.getDate()     === b.getDate();
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
-
 function startOfWeek(d: Date) {
-  const r = new Date(d);
-  r.setDate(d.getDate() - d.getDay());
-  r.setHours(0,0,0,0);
-  return r;
+  const r = new Date(d); r.setDate(d.getDate() - d.getDay()); r.setHours(0,0,0,0); return r;
 }
 
-// ─── Tarjeta mini (para semanal/mensual) ──────────────────────────────────────
-function TarjetaMini({ cita, onFinalizar, onNoShow, onSeguimiento }: {
-  cita: Cita;
-  onFinalizar: (id: string) => void;
-  onNoShow: (id: string) => void;
-  onSeguimiento: (d: SeguimientoForm) => void;
-}) {
-  const hora  = new Date(cita.start_datetime).toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' });
-  const badge = BADGE[cita.status] ?? BADGE['scheduled'];
-  const [expandido, setExpandido] = useState(false);
+// ─── Badge de estado ──────────────────────────────────────────────────────────
+function StatusBadge({ status }: { status: string }) {
+  const cfg = appointmentBadge(status);
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: radius.full, fontSize: typography.xs, fontWeight: typography.semibold, backgroundColor: cfg.bg, color: cfg.text }}>
+      <span style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: cfg.dot }} />
+      {STATUS_LABEL[status] || status}
+    </span>
+  );
+}
+
+// ─── Botón de acción pequeño ──────────────────────────────────────────────────
+function ActionBtn({ icon, label, onClick, variant = 'default' }: { icon: React.ReactNode; label: string; onClick: (e: React.MouseEvent) => void; variant?: 'default' | 'success' | 'danger' | 'accent' }) {
+  const [hov, setHov] = useState(false);
+  const styles = {
+    default:  { bg: colors.bgSubtle,      text: colors.textSecondary,  hbg: colors.bgMuted },
+    success:  { bg: colors.successLight,  text: colors.success,        hbg: '#DCFCE7' },
+    danger:   { bg: colors.dangerLight,   text: colors.danger,         hbg: '#FEE2E2' },
+    accent:   { bg: colors.accentLight,   text: colors.accentText,     hbg: '#DBEAFE' },
+  }[variant];
 
   return (
-    <div className={`text-xs rounded-lg p-1.5 cursor-pointer border transition-all ${
-      cita.status === 'scheduled' ? 'bg-indigo-50 border-indigo-200' :
-      cita.status === 'completed' ? 'bg-emerald-50 border-emerald-200' :
-      cita.status === 'no-show'   ? 'bg-orange-50 border-orange-200' :
-                                    'bg-gray-50 border-gray-200'
-    }`} onClick={() => setExpandido(!expandido)}>
-      <div className="font-semibold text-gray-800 truncate">{hora} · {cita.clients?.name || 'Sin nombre'}</div>
-      <div className="text-gray-500 truncate">{cita.services?.name}</div>
+    <button onClick={onClick} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: radius.md, border: 'none', cursor: 'pointer', fontSize: typography.xs, fontWeight: typography.semibold, fontFamily: typography.fontFamily, backgroundColor: hov ? styles.hbg : styles.bg, color: styles.text, transition: 'all 0.15s' }}>
+      {icon} {label}
+    </button>
+  );
+}
 
-      {expandido && (
-        <div className="mt-2 space-y-1.5 border-t border-gray-200 pt-1.5">
-          <span className={`inline-block px-1.5 py-0.5 rounded-full font-semibold ${badge.clase}`}>
-            {badge.label}
-          </span>
-          {cita.status === 'scheduled' && (
-            <div className="flex gap-1 flex-wrap">
-              <button onClick={e => { e.stopPropagation(); onFinalizar(cita.id); }}
-                className="flex items-center gap-0.5 px-2 py-1 bg-emerald-100 text-emerald-700 rounded font-semibold hover:bg-emerald-200">
-                <CheckCircle size={11} /> Finalizar
-              </button>
-              <button onClick={e => { e.stopPropagation(); onNoShow(cita.id); }}
-                className="flex items-center gap-0.5 px-2 py-1 bg-orange-100 text-orange-600 rounded font-semibold hover:bg-orange-200">
-                <UserX size={11} /> No asistió
-              </button>
-              <button onClick={e => { e.stopPropagation(); onSeguimiento({
-                citaId: cita.id,
-                clienteNombre: cita.clients?.name || '',
-                servicioActualId: (cita.services as any)?.id || '',
-                servicioActualNombre: cita.services?.name || '',
-              }); }}
-                className="flex items-center gap-0.5 px-2 py-1 bg-indigo-100 text-indigo-600 rounded font-semibold hover:bg-indigo-200">
-                <RefreshCw size={11} /> Seguimiento
-              </button>
-            </div>
-          )}
+// ─── Tarjeta mini (vistas semanal/mensual) ────────────────────────────────────
+function TarjetaMini({ cita, onFinalizar, onNoShow, onSeguimiento }: { cita: Cita; onFinalizar: (id: string) => void; onNoShow: (id: string) => void; onSeguimiento: (d: SeguimientoForm) => void }) {
+  const [exp, setExp] = useState(false);
+  const cfg = appointmentBadge(cita.status);
+  const hora = new Date(cita.start_datetime).toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' });
+
+  return (
+    <div onClick={() => setExp(!exp)} style={{ borderRadius: radius.md, padding: '6px 8px', cursor: 'pointer', border: `1px solid ${cfg.bg}`, backgroundColor: cfg.bg, transition: 'all 0.15s', marginBottom: 2 }}>
+      <p style={{ margin: 0, fontSize: '11px', fontWeight: typography.semibold, color: cfg.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {hora} · {cita.clients?.name || '—'}
+      </p>
+      <p style={{ margin: 0, fontSize: '10px', color: cfg.text, opacity: 0.7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {cita.services?.name}
+      </p>
+      {exp && cita.status === 'scheduled' && (
+        <div style={{ marginTop: 6, display: 'flex', gap: 4, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
+          <ActionBtn icon={<CheckCircle size={10} />} label="Listo" onClick={e => { e.stopPropagation(); onFinalizar(cita.id); }} variant="success" />
+          <ActionBtn icon={<UserX size={10} />} label="N/A" onClick={e => { e.stopPropagation(); onNoShow(cita.id); }} variant="danger" />
+          <ActionBtn icon={<RefreshCw size={10} />} label="Seguim." onClick={e => { e.stopPropagation(); onSeguimiento({ citaId: cita.id, clienteNombre: cita.clients?.name || '', servicioActualId: (cita.services as any)?.id || '', servicioActualNombre: cita.services?.name || '' }); }} variant="accent" />
         </div>
       )}
     </div>
   );
 }
 
-// ─── Tarjeta completa (vista diaria) ─────────────────────────────────────────
-function TarjetaCita({ cita, onFinalizar, onNoShow, onSeguimiento }: {
-  cita: Cita;
-  onFinalizar: (id: string) => void;
-  onNoShow: (id: string) => void;
-  onSeguimiento: (d: SeguimientoForm) => void;
-}) {
+// ─── Tarjeta diaria ───────────────────────────────────────────────────────────
+function TarjetaCita({ cita, onFinalizar, onNoShow, onSeguimiento }: { cita: Cita; onFinalizar: (id: string) => void; onNoShow: (id: string) => void; onSeguimiento: (d: SeguimientoForm) => void }) {
+  const [hov, setHov] = useState(false);
   const fecha = new Date(cita.start_datetime).toLocaleDateString('es-GT', { weekday: 'short', day: '2-digit', month: 'short' });
   const hora  = new Date(cita.start_datetime).toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' });
-  const badge = BADGE[cita.status] ?? BADGE['scheduled'];
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-      <div className="flex justify-between items-start mb-3">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Calendar size={13} className="text-indigo-400" />
-            <span className="capitalize">{fecha}</span>
-            <span className="text-gray-300">·</span>
-            <Clock size={13} className="text-indigo-400" />
-            <span>{hora}</span>
+    <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} style={{ backgroundColor: colors.bgCard, border: `1px solid ${hov ? colors.borderStrong : colors.border}`, borderRadius: radius.xl, padding: '18px 20px', boxShadow: hov ? shadow.md : shadow.sm, transition: 'all 0.15s' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+            <Calendar size={12} style={{ color: colors.textMuted }} />
+            <span style={{ fontSize: typography.xs, color: colors.textMuted, textTransform: 'capitalize' }}>{fecha}</span>
+            <span style={{ color: colors.border }}>·</span>
+            <Clock size={12} style={{ color: colors.textMuted }} />
+            <span style={{ fontSize: typography.xs, color: colors.textMuted }}>{hora}</span>
           </div>
-          <p className="font-bold text-gray-900 flex items-center gap-2">
-            <User size={15} className="text-gray-400" />
+          <p style={{ margin: '0 0 3px', fontSize: typography.base, fontWeight: typography.semibold, color: colors.textPrimary, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <User size={13} style={{ color: colors.textMuted }} />
             {cita.clients?.name || 'Sin nombre'}
           </p>
-          <p className="text-sm text-gray-600 flex items-center gap-2">
-            <Scissors size={13} className="text-gray-400" />
+          <p style={{ margin: 0, fontSize: typography.sm, color: colors.textSecondary, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Scissors size={12} style={{ color: colors.textMuted }} />
             {cita.services?.name}
-            {cita.services?.price && (
-              <span className="text-emerald-600 font-semibold">· Q{cita.services.price}</span>
+            {cita.services?.price > 0 && (
+              <span style={{ color: colors.success, fontWeight: typography.semibold }}>· Q{cita.services.price}</span>
             )}
           </p>
         </div>
-        <span className={`text-xs font-bold px-2 py-1 rounded-full ${badge.clase}`}>
-          {badge.label}
-        </span>
+        <StatusBadge status={cita.status} />
       </div>
 
       {cita.status === 'scheduled' && (
-        <div className="flex gap-2 pt-3 border-t border-gray-100">
-          <button onClick={() => onFinalizar(cita.id)}
-            className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-2 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors">
-            <CheckCircle size={13} /> Finalizar
-          </button>
-          <button onClick={() => onNoShow(cita.id)}
-            className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-2 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors">
-            <UserX size={13} /> No asistió
-          </button>
-          <button onClick={() => onSeguimiento({
-            citaId: cita.id,
-            clienteNombre: cita.clients?.name || 'Sin nombre',
-            servicioActualId: (cita.services as any)?.id || '',
-            servicioActualNombre: cita.services?.name || '',
-          })}
-            className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-2 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors">
-            <RefreshCw size={13} /> Seguimiento
-          </button>
+        <div style={{ display: 'flex', gap: 6, paddingTop: 12, borderTop: `1px solid ${colors.border}` }}>
+          <ActionBtn icon={<CheckCircle size={12} />} label="Finalizar" onClick={() => onFinalizar(cita.id)} variant="success" />
+          <ActionBtn icon={<UserX size={12} />} label="No asistió" onClick={() => onNoShow(cita.id)} variant="danger" />
+          <ActionBtn icon={<RefreshCw size={12} />} label="Seguimiento" onClick={() => onSeguimiento({ citaId: cita.id, clienteNombre: cita.clients?.name || '', servicioActualId: (cita.services as any)?.id || '', servicioActualNombre: cita.services?.name || '' })} variant="accent" />
         </div>
       )}
     </div>
   );
 }
 
-// ─── Modal de Seguimiento ─────────────────────────────────────────────────────
-function ModalSeguimiento({ datos, negocio, onClose, onGuardado }: {
-  datos: SeguimientoForm;
-  negocio: string;
-  onClose: () => void;
-  onGuardado: (c: Cita) => void;
-}) {
-  const [servicios, setServicios]       = useState<Servicio[]>([]);
-  const [servicioId, setServicioId]     = useState(datos.servicioActualId);
-  const [fecha, setFecha]               = useState('');
-  const [hora, setHora]                 = useState('');
-  const [notas, setNotas]               = useState('');
+// ─── Modal base ───────────────────────────────────────────────────────────────
+function Modal({ titulo, subtitulo, onClose, children }: { titulo: string; subtitulo?: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
+      <div style={{ backgroundColor: colors.bgCard, borderRadius: radius.xxl, boxShadow: shadow.lg, width: '100%', maxWidth: 440, overflow: 'hidden', animation: 'fadeIn 0.15s ease' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '18px 20px', borderBottom: `1px solid ${colors.border}` }}>
+          <div>
+            <p style={{ margin: 0, fontSize: typography.md, fontWeight: typography.bold, color: colors.textPrimary }}>{titulo}</p>
+            {subtitulo && <p style={{ margin: '2px 0 0', fontSize: typography.xs, color: colors.textMuted }}>{subtitulo}</p>}
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.textMuted, padding: 4, borderRadius: radius.md, display: 'flex' }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.danger}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.textMuted}>
+            <X size={16} />
+          </button>
+        </div>
+        <div style={{ padding: '20px' }}>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Campo de formulario ──────────────────────────────────────────────────────
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: spacing.md }}>
+      <label style={{ display: 'block', fontSize: typography.xs, fontWeight: typography.semibold, color: colors.textSecondary, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
+const inputStyle: React.CSSProperties = {
+  width: '100%', padding: '9px 12px', borderRadius: radius.lg,
+  border: `1px solid ${colors.border}`, backgroundColor: colors.bgSubtle,
+  color: colors.textPrimary, fontSize: typography.sm,
+  fontFamily: typography.fontFamily, outline: 'none',
+  boxSizing: 'border-box',
+};
+
+const selectStyle: React.CSSProperties = { ...inputStyle, cursor: 'pointer' };
+
+// ─── Modal Seguimiento ────────────────────────────────────────────────────────
+function ModalSeguimiento({ datos, negocio, onClose, onGuardado }: { datos: SeguimientoForm; negocio: string; onClose: () => void; onGuardado: (c: Cita) => void }) {
+  const [servicios, setServicios] = useState<Servicio[]>([]);
+  const [servicioId, setServicioId] = useState(datos.servicioActualId);
+  const [fecha, setFecha] = useState('');
+  const [hora, setHora]   = useState('');
+  const [notas, setNotas] = useState('');
   const [recordatorio, setRecordatorio] = useState('');
-  const [guardando, setGuardando]       = useState(false);
+  const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
-    supabase.from('services').select('id, name, duration_minutes')
-      .eq('business_id', negocio).eq('is_active', true).order('name')
+    supabase.from('services').select('id, name, duration_minutes').eq('business_id', negocio).eq('is_active', true).order('name')
       .then(({ data }) => setServicios(data || []));
   }, [negocio]);
 
   async function guardar() {
-    if (!fecha || !hora || !servicioId) { alert('Completa fecha, hora y servicio'); return; }
+    if (!fecha || !hora || !servicioId) return;
     setGuardando(true);
     try {
-      const srv      = servicios.find(s => s.id === servicioId);
-      const duracion = srv?.duration_minutes || 30;
-      const inicio   = new Date(`${fecha}T${hora}:00`);
-      const fin      = new Date(inicio.getTime() + duracion * 60000);
-
+      const srv = servicios.find(s => s.id === servicioId);
+      const ini = new Date(`${fecha}T${hora}:00`);
+      const fin = new Date(ini.getTime() + (srv?.duration_minutes || 30) * 60000);
       const { data: citaOrig } = await supabase.from('appointments').select('client_id').eq('id', datos.citaId).single();
-
-      const notasCompletas = [notas, recordatorio ? `⚠️ Recordatorio: ${recordatorio}` : ''].filter(Boolean).join('\n\n');
-
+      const notasFinal = [notas, recordatorio ? `⚠️ ${recordatorio}` : ''].filter(Boolean).join('\n\n');
       const { data, error } = await supabase.from('appointments')
-        .insert([{
-          business_id: negocio, client_id: citaOrig?.client_id, service_id: servicioId,
-          start_datetime: inicio.toISOString(), end_datetime: fin.toISOString(),
-          status: 'scheduled', notes: notasCompletas || null, follow_up_of: datos.citaId,
-        }])
+        .insert([{ business_id: negocio, client_id: citaOrig?.client_id, service_id: servicioId, start_datetime: ini.toISOString(), end_datetime: fin.toISOString(), status: 'scheduled', notes: notasFinal || null, follow_up_of: datos.citaId }])
         .select('*, clients(name), services(name, price)').single();
-
       if (error) throw error;
       onGuardado(data as Cita);
       onClose();
@@ -220,195 +222,38 @@ function ModalSeguimiento({ datos, negocio, onClose, onGuardado }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-      <div className="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden">
-        <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-indigo-50">
-          <div>
-            <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">
-              <RefreshCw size={18} className="text-indigo-600" /> Agendar Seguimiento
-            </h3>
-            <p className="text-sm text-gray-500 mt-0.5">Para: <strong>{datos.clienteNombre}</strong></p>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-red-500 transition-colors"><X size={20} /></button>
-        </div>
-        <div className="p-5 space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center gap-2">
-              <Scissors size={14} className="text-indigo-500" /> Servicio
-            </label>
-            <select value={servicioId} onChange={e => setServicioId(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
-              <option value="">— Selecciona un servicio —</option>
-              {servicios.map(s => (
-                <option key={s.id} value={s.id}>
-                  {s.name} ({s.duration_minutes} min){s.id === datos.servicioActualId ? ' ★ mismo servicio' : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center gap-2">
-                <Calendar size={14} className="text-indigo-500" /> Fecha
-              </label>
-              <input type="date" value={fecha} min={new Date().toISOString().split('T')[0]}
-                onChange={e => setFecha(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center gap-2">
-                <Clock size={14} className="text-indigo-500" /> Hora
-              </label>
-              <input type="time" value={hora} onChange={e => setHora(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center gap-2">
-              <FileText size={14} className="text-indigo-500" /> Notas del profesional
-              <span className="text-gray-400 font-normal">(opcional)</span>
-            </label>
-            <textarea rows={3} placeholder="Ej: Revisar brackets superiores..." value={notas}
-              onChange={e => setNotas(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none" />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center gap-2">
-              <Bell size={14} className="text-indigo-500" /> Recordatorio especial
-              <span className="text-gray-400 font-normal">(opcional)</span>
-            </label>
-            <input type="text" placeholder="Ej: Venir en ayunas..." value={recordatorio}
-              onChange={e => setRecordatorio(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-          </div>
-          <div className="flex gap-3 pt-2">
-            <button onClick={onClose}
-              className="flex-1 py-3 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-colors text-sm">
-              Cancelar
-            </button>
-            <button onClick={guardar} disabled={guardando || !fecha || !hora || !servicioId}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 font-semibold rounded-xl text-white text-sm transition-colors ${
-                guardando || !fecha || !hora || !servicioId ? 'bg-indigo-300' : 'bg-indigo-600 hover:bg-indigo-700'
-              }`}>
-              <Save size={15} /> {guardando ? 'Guardando...' : 'Confirmar'}
-            </button>
-          </div>
-        </div>
+    <Modal titulo="Agendar seguimiento" subtitulo={`Para: ${datos.clienteNombre}`} onClose={onClose}>
+      <Field label="Servicio">
+        <select value={servicioId} onChange={e => setServicioId(e.target.value)} style={selectStyle}>
+          <option value="">— Selecciona —</option>
+          {servicios.map(s => <option key={s.id} value={s.id}>{s.name} ({s.duration_minutes} min){s.id === datos.servicioActualId ? ' ★' : ''}</option>)}
+        </select>
+      </Field>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: spacing.md }}>
+        <Field label="Fecha"><input type="date" value={fecha} min={new Date().toISOString().split('T')[0]} onChange={e => setFecha(e.target.value)} style={inputStyle} /></Field>
+        <Field label="Hora"><input type="time" value={hora} onChange={e => setHora(e.target.value)} style={inputStyle} /></Field>
       </div>
-    </div>
-  );
-}
-
-// ─── Vista Semanal ────────────────────────────────────────────────────────────
-function VistaSemanal({ citas, semanaBase, onFinalizar, onNoShow, onSeguimiento }: {
-  citas: Cita[];
-  semanaBase: Date;
-  onFinalizar: (id: string) => void;
-  onNoShow: (id: string) => void;
-  onSeguimiento: (d: SeguimientoForm) => void;
-}) {
-  const dias = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(semanaBase);
-    d.setDate(semanaBase.getDate() + i);
-    return d;
-  });
-
-  const hoy = new Date();
-
-  return (
-    <div className="grid grid-cols-7 gap-1 min-h-64">
-      {dias.map((dia, i) => {
-        const citasDia = citas.filter(c => isSameDay(new Date(c.start_datetime), dia));
-        const esHoy = isSameDay(dia, hoy);
-        return (
-          <div key={i} className={`border rounded-xl p-2 min-h-32 ${esHoy ? 'border-indigo-400 bg-indigo-50/30' : 'border-gray-200 bg-white'}`}>
-            <div className={`text-center mb-2 ${esHoy ? 'text-indigo-600 font-bold' : 'text-gray-500'}`}>
-              <div className="text-xs font-semibold">{DIAS_ES[dia.getDay()]}</div>
-              <div className={`text-lg font-bold w-8 h-8 mx-auto flex items-center justify-center rounded-full ${esHoy ? 'bg-indigo-600 text-white' : ''}`}>
-                {dia.getDate()}
-              </div>
-            </div>
-            <div className="space-y-1">
-              {citasDia.length === 0 ? (
-                <div className="text-xs text-center text-gray-300 py-2">—</div>
-              ) : (
-                citasDia.map(c => (
-                  <TarjetaMini key={c.id} cita={c} onFinalizar={onFinalizar} onNoShow={onNoShow} onSeguimiento={onSeguimiento} />
-                ))
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ─── Vista Mensual ────────────────────────────────────────────────────────────
-function VistaMensual({ citas, mesBase, onFinalizar, onNoShow, onSeguimiento }: {
-  citas: Cita[];
-  mesBase: Date;
-  onFinalizar: (id: string) => void;
-  onNoShow: (id: string) => void;
-  onSeguimiento: (d: SeguimientoForm) => void;
-}) {
-  const hoy        = new Date();
-  const año        = mesBase.getFullYear();
-  const mes        = mesBase.getMonth();
-  const primerDia  = new Date(año, mes, 1);
-  const ultimoDia  = new Date(año, mes + 1, 0);
-  const offsetInicio = primerDia.getDay(); // 0=Dom
-
-  const celdas: (Date | null)[] = [
-    ...Array(offsetInicio).fill(null),
-    ...Array.from({ length: ultimoDia.getDate() }, (_, i) => new Date(año, mes, i + 1)),
-  ];
-  // Rellenar hasta múltiplo de 7
-  while (celdas.length % 7 !== 0) celdas.push(null);
-
-  return (
-    <div>
-      {/* Cabecera días */}
-      <div className="grid grid-cols-7 mb-1">
-        {DIAS_ES.map(d => (
-          <div key={d} className="text-center text-xs font-semibold text-gray-400 py-1">{d}</div>
-        ))}
+      <Field label="Notas del profesional">
+        <textarea rows={2} value={notas} onChange={e => setNotas(e.target.value)} placeholder="Indicaciones especiales..." style={{ ...inputStyle, resize: 'none' }} />
+      </Field>
+      <Field label="Recordatorio especial">
+        <input type="text" value={recordatorio} onChange={e => setRecordatorio(e.target.value)} placeholder="Ej: Venir en ayunas..." style={inputStyle} />
+      </Field>
+      <div style={{ display: 'flex', gap: spacing.sm, marginTop: spacing.md }}>
+        <button onClick={onClose} style={{ flex: 1, padding: '9px', borderRadius: radius.lg, border: `1px solid ${colors.border}`, backgroundColor: colors.bgSubtle, color: colors.textSecondary, cursor: 'pointer', fontSize: typography.sm, fontWeight: typography.semibold, fontFamily: typography.fontFamily }}>Cancelar</button>
+        <button onClick={guardar} disabled={guardando || !fecha || !hora || !servicioId}
+          style={{ flex: 1, padding: '9px', borderRadius: radius.lg, border: 'none', backgroundColor: (!fecha || !hora || !servicioId) ? colors.bgMuted : colors.accent, color: (!fecha || !hora || !servicioId) ? colors.textMuted : 'white', cursor: (!fecha || !hora || !servicioId) ? 'not-allowed' : 'pointer', fontSize: typography.sm, fontWeight: typography.semibold, fontFamily: typography.fontFamily, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <Save size={13} /> {guardando ? 'Guardando...' : 'Confirmar'}
+        </button>
       </div>
-      {/* Celdas */}
-      <div className="grid grid-cols-7 gap-1">
-        {celdas.map((dia, i) => {
-          if (!dia) return <div key={i} className="min-h-20" />;
-          const citasDia = citas.filter(c => isSameDay(new Date(c.start_datetime), dia));
-          const esHoy    = isSameDay(dia, hoy);
-          return (
-            <div key={i} className={`border rounded-xl p-1.5 min-h-20 ${esHoy ? 'border-indigo-400 bg-indigo-50/30' : 'border-gray-100 bg-white hover:border-gray-300'}`}>
-              <div className={`text-xs font-bold mb-1 w-6 h-6 flex items-center justify-center rounded-full ${esHoy ? 'bg-indigo-600 text-white' : 'text-gray-500'}`}>
-                {dia.getDate()}
-              </div>
-              <div className="space-y-0.5">
-                {citasDia.slice(0, 2).map(c => (
-                  <TarjetaMini key={c.id} cita={c} onFinalizar={onFinalizar} onNoShow={onNoShow} onSeguimiento={onSeguimiento} />
-                ))}
-                {citasDia.length > 2 && (
-                  <div className="text-xs text-indigo-500 font-semibold text-center">+{citasDia.length - 2} más</div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    </Modal>
   );
 }
 
 // ─── Modal Nueva Cita ─────────────────────────────────────────────────────────
-function ModalNuevaCita({ negocio, onClose, onGuardado }: {
-  negocio: string;
-  onClose: () => void;
-  onGuardado: (c: Cita) => void;
-}) {
-  const [servicios, setServicios]   = useState<Servicio[]>([]);
-  const [clientes, setClientes]     = useState<any[]>([]);
+function ModalNuevaCita({ negocio, onClose, onGuardado }: { negocio: string; onClose: () => void; onGuardado: (c: Cita) => void }) {
+  const [servicios, setServicios] = useState<Servicio[]>([]);
+  const [clientes, setClientes]   = useState<any[]>([]);
   const [servicioId, setServicioId] = useState('');
   const [clienteId, setClienteId]   = useState('');
   const [fecha, setFecha]           = useState('');
@@ -421,163 +266,145 @@ function ModalNuevaCita({ negocio, onClose, onGuardado }: {
     Promise.all([
       supabase.from('services').select('id, name, duration_minutes').eq('business_id', negocio).eq('is_active', true).order('name'),
       supabase.from('clients').select('id, name, phone_number').eq('business_id', negocio).order('name'),
-    ]).then(([{ data: s }, { data: c }]) => {
-      setServicios(s || []);
-      setClientes(c || []);
-    });
+    ]).then(([{ data: s }, { data: c }]) => { setServicios(s || []); setClientes(c || []); });
   }, [negocio]);
 
   async function guardar() {
-    if (!servicioId || !clienteId || !fecha || !hora) { alert('Completa todos los campos'); return; }
-    setGuardando(true);
-    setAdvertencia(null);
+    if (!servicioId || !clienteId || !fecha || !hora) return;
+    setGuardando(true); setAdvertencia(null);
     try {
-      const srv      = servicios.find(s => s.id === servicioId);
-      const duracion = srv?.duration_minutes || 30;
-      const inicio   = new Date(`${fecha}T${hora}:00`);
-      const fin      = new Date(inicio.getTime() + duracion * 60000);
-
-      // ✅ Verificar solapamiento antes de guardar
-      const { data: solapadas } = await supabase
-        .from('appointments')
-        .select('id, clients(name), services(name), start_datetime')
-        .eq('business_id', negocio)
-        .eq('status', 'scheduled')
-        .lt('start_datetime', fin.toISOString())
-        .gt('end_datetime', inicio.toISOString());
-
+      const srv = servicios.find(s => s.id === servicioId);
+      const ini = new Date(`${fecha}T${hora}:00`);
+      const fin = new Date(ini.getTime() + (srv?.duration_minutes || 30) * 60000);
+      const { data: solapadas } = await supabase.from('appointments').select('id, clients(name), services(name), start_datetime').eq('business_id', negocio).eq('status', 'scheduled').lt('start_datetime', fin.toISOString()).gt('end_datetime', ini.toISOString());
       if (solapadas && solapadas.length > 0) {
         const c = solapadas[0] as any;
-        const horaExistente = new Date(c.start_datetime).toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' });
-        setAdvertencia(`⚠️ Ya hay una cita de ${c.clients?.name || 'otro cliente'} (${c.services?.name}) a las ${horaExistente}. ¿Deseas agendar de todas formas?`);
-        setGuardando(false);
-        return;
+        const h = new Date(c.start_datetime).toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' });
+        setAdvertencia(`Ya hay una cita de ${c.clients?.name || 'otro cliente'} (${c.services?.name}) a las ${h}. ¿Agendar de todas formas?`);
+        setGuardando(false); return;
       }
-
-      await confirmarGuardar(inicio, fin, duracion);
+      await confirmar(ini, fin);
     } catch (e: any) { alert('Error: ' + e.message); setGuardando(false); }
   }
 
-  async function confirmarGuardar(inicio?: Date, fin?: Date, duracion?: number) {
-    setGuardando(true);
-    setAdvertencia(null);
+  async function confirmar(ini?: Date, fin?: Date) {
+    setGuardando(true); setAdvertencia(null);
     try {
-      const srv      = servicios.find(s => s.id === servicioId);
-      const dur      = duracion ?? srv?.duration_minutes ?? 30;
-      const ini      = inicio   ?? new Date(`${fecha}T${hora}:00`);
-      const fi       = fin      ?? new Date(ini.getTime() + dur * 60000);
-
+      const srv = servicios.find(s => s.id === servicioId);
+      const i = ini ?? new Date(`${fecha}T${hora}:00`);
+      const f = fin ?? new Date(i.getTime() + (srv?.duration_minutes || 30) * 60000);
       const { data, error } = await supabase.from('appointments')
-        .insert([{
-          business_id: negocio, client_id: clienteId, service_id: servicioId,
-          start_datetime: ini.toISOString(), end_datetime: fi.toISOString(),
-          status: 'scheduled', notes: notas || null,
-        }])
+        .insert([{ business_id: negocio, client_id: clienteId, service_id: servicioId, start_datetime: i.toISOString(), end_datetime: f.toISOString(), status: 'scheduled', notes: notas || null }])
         .select('*, clients(name), services(name, price)').single();
-
       if (error) throw error;
       onGuardado(data as Cita);
     } catch (e: any) { alert('Error: ' + e.message); }
     finally { setGuardando(false); }
   }
 
+  const valid = servicioId && clienteId && fecha && hora;
+
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-      <div className="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden">
-        <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-indigo-50">
-          <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">
-            <Plus size={18} className="text-indigo-600" /> Nueva Cita Manual
-          </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-red-500 transition-colors"><X size={20} /></button>
+    <Modal titulo="Nueva cita" subtitulo="Agendamiento manual" onClose={onClose}>
+      <Field label="Cliente">
+        <select value={clienteId} onChange={e => setClienteId(e.target.value)} style={selectStyle}>
+          <option value="">— Selecciona un cliente —</option>
+          {clientes.map(c => <option key={c.id} value={c.id}>{c.name || 'Sin nombre'} · {c.phone_number}</option>)}
+        </select>
+      </Field>
+      <Field label="Servicio">
+        <select value={servicioId} onChange={e => setServicioId(e.target.value)} style={selectStyle}>
+          <option value="">— Selecciona un servicio —</option>
+          {servicios.map(s => <option key={s.id} value={s.id}>{s.name} ({s.duration_minutes} min)</option>)}
+        </select>
+      </Field>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: spacing.md }}>
+        <Field label="Fecha"><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} style={inputStyle} /></Field>
+        <Field label="Hora"><input type="time" value={hora} onChange={e => setHora(e.target.value)} style={inputStyle} /></Field>
+      </div>
+      <Field label="Notas">
+        <textarea rows={2} value={notas} onChange={e => setNotas(e.target.value)} placeholder="Indicaciones especiales..." style={{ ...inputStyle, resize: 'none' }} />
+      </Field>
+
+      {advertencia && (
+        <div style={{ backgroundColor: colors.warningLight, border: `1px solid ${colors.warning}`, borderRadius: radius.lg, padding: '12px 14px', marginBottom: spacing.md, fontSize: typography.sm, color: colors.warning }}>
+          <p style={{ margin: '0 0 10px' }}>⚠️ {advertencia}</p>
+          <div style={{ display: 'flex', gap: spacing.sm }}>
+            <button onClick={() => setAdvertencia(null)} style={{ flex: 1, padding: '6px', borderRadius: radius.md, border: `1px solid ${colors.border}`, backgroundColor: colors.bgCard, cursor: 'pointer', fontSize: typography.xs, fontWeight: typography.semibold, fontFamily: typography.fontFamily, color: colors.textSecondary }}>Cancelar</button>
+            <button onClick={() => confirmar()} style={{ flex: 1, padding: '6px', borderRadius: radius.md, border: 'none', backgroundColor: colors.warning, color: 'white', cursor: 'pointer', fontSize: typography.xs, fontWeight: typography.semibold, fontFamily: typography.fontFamily }}>Agendar de todas formas</button>
+          </div>
         </div>
-        <div className="p-5 space-y-4">
-          {/* Cliente */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center gap-2">
-              <User size={14} className="text-indigo-500" /> Cliente
-            </label>
-            <select value={clienteId} onChange={e => setClienteId(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
-              <option value="">— Selecciona un cliente —</option>
-              {clientes.map(c => (
-                <option key={c.id} value={c.id}>{c.name || 'Sin nombre'} · {c.phone_number}</option>
-              ))}
-            </select>
-          </div>
+      )}
 
-          {/* Servicio */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center gap-2">
-              <Scissors size={14} className="text-indigo-500" /> Servicio
-            </label>
-            <select value={servicioId} onChange={e => setServicioId(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
-              <option value="">— Selecciona un servicio —</option>
-              {servicios.map(s => (
-                <option key={s.id} value={s.id}>{s.name} ({s.duration_minutes} min)</option>
-              ))}
-            </select>
-          </div>
+      <div style={{ display: 'flex', gap: spacing.sm }}>
+        <button onClick={onClose} style={{ flex: 1, padding: '9px', borderRadius: radius.lg, border: `1px solid ${colors.border}`, backgroundColor: colors.bgSubtle, color: colors.textSecondary, cursor: 'pointer', fontSize: typography.sm, fontWeight: typography.semibold, fontFamily: typography.fontFamily }}>Cancelar</button>
+        <button onClick={guardar} disabled={!valid || guardando}
+          style={{ flex: 1, padding: '9px', borderRadius: radius.lg, border: 'none', backgroundColor: !valid ? colors.bgMuted : colors.accent, color: !valid ? colors.textMuted : 'white', cursor: !valid ? 'not-allowed' : 'pointer', fontSize: typography.sm, fontWeight: typography.semibold, fontFamily: typography.fontFamily, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <Plus size={13} /> {guardando ? 'Guardando...' : 'Agendar'}
+        </button>
+      </div>
+    </Modal>
+  );
+}
 
-          {/* Fecha y hora */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center gap-2">
-                <Calendar size={14} className="text-indigo-500" /> Fecha
-              </label>
-              <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center gap-2">
-                <Clock size={14} className="text-indigo-500" /> Hora
-              </label>
-              <input type="time" value={hora} onChange={e => setHora(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-            </div>
-          </div>
+// ─── Vista Semanal ────────────────────────────────────────────────────────────
+function VistaSemanal({ citas, semanaBase, onFinalizar, onNoShow, onSeguimiento }: { citas: Cita[]; semanaBase: Date; onFinalizar: (id: string) => void; onNoShow: (id: string) => void; onSeguimiento: (d: SeguimientoForm) => void }) {
+  const hoy = new Date();
+  const dias = Array.from({ length: 7 }, (_, i) => { const d = new Date(semanaBase); d.setDate(semanaBase.getDate() + i); return d; });
 
-          {/* Notas */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center gap-2">
-              <FileText size={14} className="text-indigo-500" /> Notas
-              <span className="text-gray-400 font-normal">(opcional)</span>
-            </label>
-            <textarea rows={2} placeholder="Indicaciones especiales..." value={notas}
-              onChange={e => setNotas(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none" />
-          </div>
-
-          {/* Advertencia de solapamiento */}
-          {advertencia && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
-              <p className="mb-2">{advertencia}</p>
-              <div className="flex gap-2">
-                <button onClick={() => setAdvertencia(null)}
-                  className="flex-1 py-1.5 bg-gray-100 text-gray-700 font-semibold rounded-lg text-xs hover:bg-gray-200">
-                  Cancelar
-                </button>
-                <button onClick={() => confirmarGuardar()}
-                  className="flex-1 py-1.5 bg-amber-500 text-white font-semibold rounded-lg text-xs hover:bg-amber-600">
-                  Agendar de todas formas
-                </button>
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+      {dias.map((dia, i) => {
+        const citasDia = citas.filter(c => isSameDay(new Date(c.start_datetime), dia));
+        const esHoy = isSameDay(dia, hoy);
+        return (
+          <div key={i} style={{ border: `1px solid ${esHoy ? colors.accent : colors.border}`, borderRadius: radius.lg, padding: '8px 6px', minHeight: 120, backgroundColor: esHoy ? colors.accentLight : colors.bgCard }}>
+            <div style={{ textAlign: 'center', marginBottom: 8 }}>
+              <p style={{ margin: 0, fontSize: '10px', fontWeight: typography.semibold, color: esHoy ? colors.accent : colors.textMuted, textTransform: 'uppercase' }}>{DIAS_ES[dia.getDay()]}</p>
+              <div style={{ width: 26, height: 26, borderRadius: '50%', backgroundColor: esHoy ? colors.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '2px auto 0', fontSize: typography.sm, fontWeight: typography.bold, color: esHoy ? 'white' : colors.textPrimary }}>
+                {dia.getDate()}
               </div>
             </div>
-          )}
-
-          <div className="flex gap-3 pt-1">
-            <button onClick={onClose}
-              className="flex-1 py-3 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-colors text-sm">
-              Cancelar
-            </button>
-            <button onClick={guardar} disabled={guardando || !servicioId || !clienteId || !fecha || !hora}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 font-semibold rounded-xl text-white text-sm transition-colors ${
-                guardando || !servicioId || !clienteId || !fecha || !hora ? 'bg-indigo-300' : 'bg-indigo-600 hover:bg-indigo-700'
-              }`}>
-              <Save size={15} /> {guardando ? 'Guardando...' : 'Agendar Cita'}
-            </button>
+            {citasDia.length === 0
+              ? <p style={{ textAlign: 'center', fontSize: '10px', color: colors.textDisabled, margin: 0 }}>—</p>
+              : citasDia.map(c => <TarjetaMini key={c.id} cita={c} onFinalizar={onFinalizar} onNoShow={onNoShow} onSeguimiento={onSeguimiento} />)
+            }
           </div>
-        </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Vista Mensual ────────────────────────────────────────────────────────────
+function VistaMensual({ citas, mesBase, onFinalizar, onNoShow, onSeguimiento }: { citas: Cita[]; mesBase: Date; onFinalizar: (id: string) => void; onNoShow: (id: string) => void; onSeguimiento: (d: SeguimientoForm) => void }) {
+  const hoy = new Date();
+  const año = mesBase.getFullYear(), mes = mesBase.getMonth();
+  const primerDia = new Date(año, mes, 1);
+  const ultimoDia = new Date(año, mes + 1, 0);
+  const celdas: (Date | null)[] = [...Array(primerDia.getDay()).fill(null), ...Array.from({ length: ultimoDia.getDate() }, (_, i) => new Date(año, mes, i + 1))];
+  while (celdas.length % 7 !== 0) celdas.push(null);
+
+  return (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: 4 }}>
+        {DIAS_ES.map(d => <p key={d} style={{ margin: 0, textAlign: 'center', fontSize: typography.xs, fontWeight: typography.semibold, color: colors.textMuted, padding: '4px 0', textTransform: 'uppercase' }}>{d}</p>)}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+        {celdas.map((dia, i) => {
+          if (!dia) return <div key={i} style={{ minHeight: 80 }} />;
+          const citasDia = citas.filter(c => isSameDay(new Date(c.start_datetime), dia));
+          const esHoy = isSameDay(dia, hoy);
+          return (
+            <div key={i} style={{ border: `1px solid ${esHoy ? colors.accent : colors.border}`, borderRadius: radius.lg, padding: '6px', minHeight: 80, backgroundColor: esHoy ? colors.accentLight : colors.bgCard }}>
+              <div style={{ width: 22, height: 22, borderRadius: '50%', backgroundColor: esHoy ? colors.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 4, fontSize: typography.xs, fontWeight: typography.bold, color: esHoy ? 'white' : colors.textSecondary }}>
+                {dia.getDate()}
+              </div>
+              {citasDia.slice(0, 2).map(c => <TarjetaMini key={c.id} cita={c} onFinalizar={onFinalizar} onNoShow={onNoShow} onSeguimiento={onSeguimiento} />)}
+              {citasDia.length > 2 && <p style={{ margin: 0, fontSize: '10px', color: colors.accentText, fontWeight: typography.semibold, textAlign: 'center' }}>+{citasDia.length - 2}</p>}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -585,12 +412,12 @@ function ModalNuevaCita({ negocio, onClose, onGuardado }: {
 
 // ─── Vista principal ──────────────────────────────────────────────────────────
 export function AgendaView({ citas: citasIniciales, negocio }: { citas: any[]; negocio: string }) {
-  const [citas, setCitas]             = useState<Cita[]>(citasIniciales);
-  const [tabPrincipal, setTabP]       = useState<TabPrincipal>('programadas');
-  const [tabVista, setTabV]           = useState<TabVista>('diaria');
-  const [modalSeguimiento, setModal]  = useState<SeguimientoForm | null>(null);
-  const [fechaNav, setFechaNav]       = useState(new Date());
-  const [modalNuevaCita, setModalNC]  = useState(false);
+  const [citas, setCitas]           = useState<Cita[]>(citasIniciales);
+  const [tabP, setTabP]             = useState<TabPrincipal>('programadas');
+  const [tabV, setTabV]             = useState<TabVista>('diaria');
+  const [modalSeg, setModalSeg]     = useState<SeguimientoForm | null>(null);
+  const [modalNueva, setModalNueva] = useState(false);
+  const [fechaNav, setFechaNav]     = useState(new Date());
 
   useEffect(() => { setCitas(citasIniciales); }, [citasIniciales]);
 
@@ -601,153 +428,114 @@ export function AgendaView({ citas: citasIniciales, negocio }: { citas: any[]; n
     await actualizarEstadoCita(id, 'completed');
     setCitas(prev => prev.map(c => c.id === id ? { ...c, status: 'completed' } : c));
   }
-
   async function handleNoShow(id: string) {
     await actualizarEstadoCita(id, 'no-show');
     setCitas(prev => prev.map(c => c.id === id ? { ...c, status: 'no-show' } : c));
   }
 
-  function handleSeguimientoGuardado(nuevaCita: Cita) {
-    setCitas(prev => [...prev, nuevaCita]);
-    setTabP('programadas');
-  }
-
-  // Navegación semanal/mensual
   function navegar(dir: -1 | 1) {
     const d = new Date(fechaNav);
-    if (tabVista === 'semanal') d.setDate(d.getDate() + dir * 7);
+    if (tabV === 'semanal') d.setDate(d.getDate() + dir * 7);
     else d.setMonth(d.getMonth() + dir);
     setFechaNav(d);
   }
 
-  function tituloNavegacion() {
-    if (tabVista === 'semanal') {
-      const inicio = startOfWeek(fechaNav);
-      const fin    = new Date(inicio); fin.setDate(inicio.getDate() + 6);
-      return `${inicio.getDate()} ${MESES_ES[inicio.getMonth()]} – ${fin.getDate()} ${MESES_ES[fin.getMonth()]} ${fin.getFullYear()}`;
+  function tituloNav() {
+    if (tabV === 'semanal') {
+      const ini = startOfWeek(fechaNav);
+      const fin = new Date(ini); fin.setDate(ini.getDate() + 6);
+      return `${ini.getDate()} ${MESES_ES[ini.getMonth()]} – ${fin.getDate()} ${MESES_ES[fin.getMonth()]} ${fin.getFullYear()}`;
     }
     return `${MESES_ES[fechaNav.getMonth()]} ${fechaNav.getFullYear()}`;
   }
 
-  // Renderizar contenido según vista
-  function renderContenido(listaCitas: Cita[]) {
-    if (tabVista === 'diaria') {
-      if (listaCitas.length === 0) return (
-        <div className="text-center py-16 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">
+  function renderContenido(lista: Cita[]) {
+    if (tabV === 'diaria') {
+      if (lista.length === 0) return (
+        <div style={{ textAlign: 'center', padding: '48px', border: `2px dashed ${colors.border}`, borderRadius: radius.xl, color: colors.textMuted, fontSize: typography.sm }}>
           No hay citas en esta vista.
         </div>
       );
       return (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {listaCitas.map(c => (
-            <TarjetaCita key={c.id} cita={c} onFinalizar={handleFinalizar} onNoShow={handleNoShow} onSeguimiento={setModal} />
-          ))}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: spacing.lg }}>
+          {lista.map(c => <TarjetaCita key={c.id} cita={c} onFinalizar={handleFinalizar} onNoShow={handleNoShow} onSeguimiento={setModalSeg} />)}
         </div>
       );
     }
+    if (tabV === 'semanal') return <VistaSemanal citas={lista} semanaBase={startOfWeek(fechaNav)} onFinalizar={handleFinalizar} onNoShow={handleNoShow} onSeguimiento={setModalSeg} />;
+    return <VistaMensual citas={lista} mesBase={fechaNav} onFinalizar={handleFinalizar} onNoShow={handleNoShow} onSeguimiento={setModalSeg} />;
+  }
 
-    if (tabVista === 'semanal') {
-      return (
-        <VistaSemanal
-          citas={listaCitas}
-          semanaBase={startOfWeek(fechaNav)}
-          onFinalizar={handleFinalizar}
-          onNoShow={handleNoShow}
-          onSeguimiento={setModal}
-        />
-      );
-    }
-
+  // ── Tab button helper ──
+  function TabBtn({ id, label, count }: { id: string; label: string; count?: number }) {
+    const active = tabP === id || tabV === id;
+    const [hov, setHov] = useState(false);
     return (
-      <VistaMensual
-        citas={listaCitas}
-        mesBase={fechaNav}
-        onFinalizar={handleFinalizar}
-        onNoShow={handleNoShow}
-        onSeguimiento={setModal}
-      />
+      <button onClick={() => { if (id === 'programadas' || id === 'historial') setTabP(id as TabPrincipal); else setTabV(id as TabVista); }}
+        onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+        style={{ padding: '6px 14px', borderRadius: radius.md, border: 'none', cursor: 'pointer', fontSize: typography.sm, fontWeight: typography.semibold, fontFamily: typography.fontFamily, display: 'inline-flex', alignItems: 'center', gap: 6, backgroundColor: active ? colors.bgCard : (hov ? colors.bgHover : 'transparent'), color: active ? colors.textPrimary : colors.textMuted, boxShadow: active ? shadow.sm : 'none', transition: 'all 0.15s' }}>
+        {label}
+        {count !== undefined && count > 0 && (
+          <span style={{ fontSize: '11px', fontWeight: typography.bold, padding: '1px 6px', borderRadius: radius.full, backgroundColor: active ? colors.accentLight : colors.bgMuted, color: active ? colors.accentText : colors.textMuted }}>
+            {count}
+          </span>
+        )}
+      </button>
     );
   }
 
   return (
-    <div>
-      {/* ── Fila superior: tabs principales + selector de vista ── */}
-      <div className="flex flex-wrap justify-between items-center gap-3 mb-5">
-        {/* Tabs programadas / historial */}
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
-          {(['programadas', 'historial'] as TabPrincipal[]).map(t => (
-            <button key={t} onClick={() => setTabP(t)}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors capitalize ${
-                tabPrincipal === t ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}>
-              {t === 'programadas' ? 'Programadas' : 'Historial'}
-              {t === 'programadas' && programadas.length > 0 && (
-                <span className="ml-2 bg-indigo-100 text-indigo-600 text-xs font-bold px-1.5 py-0.5 rounded-full">
-                  {programadas.length}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-
-        {/* Selector de vista */}
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+    <div style={{ animation: 'fadeIn 0.2s ease' }}>
+      {/* ── Header ── */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xl }}>
+        <h1 style={{ margin: 0, fontSize: typography.xxl, fontWeight: typography.bold, color: colors.textPrimary, letterSpacing: '-0.02em' }}>
+          Agenda
+        </h1>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Tabs vista */}
+          <div style={{ display: 'inline-flex', gap: 2, backgroundColor: colors.bgSubtle, padding: 3, borderRadius: radius.lg, border: `1px solid ${colors.border}` }}>
             {(['diaria', 'semanal', 'mensual'] as TabVista[]).map(v => (
-              <button key={v} onClick={() => setTabV(v)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors capitalize ${
-                  tabVista === v ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                }`}>
-                {v.charAt(0).toUpperCase() + v.slice(1)}
-              </button>
+              <TabBtn key={v} id={v} label={v.charAt(0).toUpperCase() + v.slice(1)} />
             ))}
           </div>
-          <button
-            onClick={() => setModalNC(true)}
-            className="flex items-center gap-1.5 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors shadow-sm"
-          >
-            <Plus size={16} /> Nueva Cita
+          {/* Botón nueva cita */}
+          <button onClick={() => setModalNueva(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: radius.lg, border: 'none', backgroundColor: colors.accent, color: 'white', cursor: 'pointer', fontSize: typography.sm, fontWeight: typography.semibold, fontFamily: typography.fontFamily, boxShadow: shadow.sm }}>
+            <Plus size={14} /> Nueva cita
           </button>
         </div>
       </div>
 
+      {/* ── Tabs programadas/historial ── */}
+      <div style={{ display: 'inline-flex', gap: 2, backgroundColor: colors.bgSubtle, padding: 3, borderRadius: radius.lg, border: `1px solid ${colors.border}`, marginBottom: spacing.lg }}>
+        <TabBtn id="programadas" label="Programadas" count={programadas.length} />
+        <TabBtn id="historial"   label="Historial" />
+      </div>
+
       {/* ── Navegación semanal/mensual ── */}
-      {(tabVista === 'semanal' || tabVista === 'mensual') && (
-        <div className="flex items-center justify-between mb-4 bg-white border border-gray-200 rounded-xl px-4 py-2.5 shadow-sm">
-          <button onClick={() => navegar(-1)}
-            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-gray-500">
-            <ChevronLeft size={18} />
+      {(tabV === 'semanal' || tabV === 'mensual') && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.bgCard, border: `1px solid ${colors.border}`, borderRadius: radius.lg, padding: '10px 16px', marginBottom: spacing.lg, boxShadow: shadow.sm }}>
+          <button onClick={() => navegar(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.textMuted, padding: 4, borderRadius: radius.md, display: 'flex' }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.textPrimary}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.textMuted}>
+            <ChevronLeft size={16} />
           </button>
-          <span className="font-semibold text-gray-800 text-sm">{tituloNavegacion()}</span>
-          <button onClick={() => navegar(1)}
-            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-gray-500">
-            <ChevronRight size={18} />
+          <p style={{ margin: 0, fontSize: typography.sm, fontWeight: typography.semibold, color: colors.textPrimary }}>{tituloNav()}</p>
+          <button onClick={() => navegar(1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.textMuted, padding: 4, borderRadius: radius.md, display: 'flex' }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = colors.textPrimary}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = colors.textMuted}>
+            <ChevronRight size={16} />
           </button>
         </div>
       )}
 
       {/* ── Contenido ── */}
-      {tabPrincipal === 'programadas' && renderContenido(programadas)}
-      {tabPrincipal === 'historial'   && renderContenido(historial)}
+      {tabP === 'programadas' && renderContenido(programadas)}
+      {tabP === 'historial'   && renderContenido(historial)}
 
-      {/* Modal de seguimiento */}
-      {modalSeguimiento && (
-        <ModalSeguimiento
-          datos={modalSeguimiento}
-          negocio={negocio}
-          onClose={() => setModal(null)}
-          onGuardado={handleSeguimientoGuardado}
-        />
-      )}
-
-      {/* Modal nueva cita */}
-      {modalNuevaCita && (
-        <ModalNuevaCita
-          negocio={negocio}
-          onClose={() => setModalNC(false)}
-          onGuardado={(c) => { setCitas(prev => [...prev, c]); setModalNC(false); setTabP('programadas'); }}
-        />
-      )}
+      {/* Modales */}
+      {modalSeg && <ModalSeguimiento datos={modalSeg} negocio={negocio} onClose={() => setModalSeg(null)} onGuardado={c => { setCitas(prev => [...prev, c]); setTabP('programadas'); setModalSeg(null); }} />}
+      {modalNueva && <ModalNuevaCita negocio={negocio} onClose={() => setModalNueva(false)} onGuardado={c => { setCitas(prev => [...prev, c]); setTabP('programadas'); setModalNueva(false); }} />}
     </div>
   );
 }
